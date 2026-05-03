@@ -2,8 +2,6 @@
 サンプルデータ投入スクリプト
 実行: python -m app.seed
 """
-from shapely.geometry import Point
-from geoalchemy2.shape import from_shape
 from app.database import SessionLocal, engine
 from app import models
 
@@ -61,11 +59,7 @@ def seed():
             return
 
         for data in SAMPLE_SITES:
-            lat, lng = data.pop("lat"), data.pop("lng")
-            site = models.Site(
-                **data,
-                geom=from_shape(Point(lng, lat), srid=4326),
-            )
+            site = models.Site(**data)
             db.add(site)
 
         db.commit()

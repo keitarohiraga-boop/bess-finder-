@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String, Float
-from geoalchemy2 import Geometry
 from app.database import Base
 
 
@@ -9,16 +8,17 @@ class Site(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     address = Column(String)
-    area = Column(Float)           # 面積（㎡）
-    landuse = Column(String)       # industrial / quasi-industrial / unzoned / commercial
+    area = Column(Float)
+    landuse = Column(String)
     landuse_label = Column(String)
-    flood = Column(String)         # none / low / mid / high
+    flood = Column(String)
     flood_label = Column(String)
-    slope = Column(Float)          # 傾斜（度）
-    substation_dist = Column(Integer)  # 変電所までの距離（m）
-    land_price = Column(Integer)   # 地価（円/㎡）
-    farm_class = Column(String, nullable=True)  # class1-farm / class2-farm / class3-farm
+    slope = Column(Float)
+    substation_dist = Column(Integer)
+    land_price = Column(Integer)
+    farm_class = Column(String, nullable=True)
     soil_risk = Column(String)
-    road_width = Column(Float)     # 接道幅員（m）
+    road_width = Column(Float)
     score = Column(Integer)
-    geom = Column(Geometry("POINT", srid=4326))
+    lat = Column(Float)
+    lng = Column(Float)
