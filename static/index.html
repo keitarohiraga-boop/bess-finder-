@@ -421,6 +421,10 @@
     <div class="logo">⚡ BESS Site Finder</div>
     <div class="subtitle">蓄電池施設 建設候補地探索システム</div>
   </div>
+  <button onclick="openEvalModal()"
+    style="background:#0ea5e9;border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">
+    🔍 住所で評価
+  </button>
   <button onclick="openLogicModal()"
     style="margin-left:auto;background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
     📊 分析ロジック・データ出典
@@ -520,6 +524,40 @@
       <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>変電所</div>
     </div>
     <div class="datasource-note">地図：国土地理院 / データ：デモ用サンプル</div>
+    <!-- 住所で評価モーダル -->
+    <div id="evalModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:400;align-items:flex-start;justify-content:center;backdrop-filter:blur(4px);padding-top:60px"
+      onclick="if(event.target===this)closeEvalModal()">
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:600px;max-width:96vw;max-height:85vh;overflow-y:auto;padding:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <div style="font-size:17px;font-weight:700;color:#e2e8f0">🔍 住所でBESSポテンシャルを評価</div>
+            <div style="font-size:12px;color:#64748b;margin-top:3px">住所を入力するとその土地のBESS適性を自動診断します</div>
+          </div>
+          <button onclick="closeEvalModal()" style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input id="evalAddress" type="text" placeholder="例：福島県郡山市田村町字守山1番地"
+            style="flex:1;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px 12px;color:#e2e8f0;font-size:13px;outline:none"
+            onkeydown="if(event.key==='Enter')runEval()">
+          <button onclick="runEval()"
+            style="background:#0ea5e9;border:none;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+            評価する
+          </button>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">
+          <label style="font-size:12px;color:#94a3b8;white-space:nowrap">土地面積（概算）</label>
+          <input id="evalArea" type="number" value="5000" min="100" step="100"
+            style="width:120px;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px 10px;color:#e2e8f0;font-size:12px;outline:none">
+          <span style="font-size:12px;color:#64748b">㎡</span>
+          <span style="font-size:11px;color:#475569;margin-left:8px">※未入力でも評価できます</span>
+        </div>
+
+        <div id="evalResult"></div>
+      </div>
+    </div>
+
     <!-- 分析ロジック・データ出典モーダル -->
     <div id="logicModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:400;align-items:center;justify-content:center;backdrop-filter:blur(4px)"
       onclick="if(event.target===this)closeLogicModal()">
@@ -1530,6 +1568,149 @@ function renderLogicTable() {
       </td>
     </tr>
   `).join("");
+}
+
+// ===== 住所評価機能 =====
+let evalMarker = null;
+
+function openEvalModal() {
+  document.getElementById("evalModal").style.display = "flex";
+  document.getElementById("evalResult").innerHTML = "";
+  setTimeout(() => document.getElementById("evalAddress").focus(), 100);
+}
+
+function closeEvalModal() {
+  document.getElementById("evalModal").style.display = "none";
+  if (evalMarker) { evalMarker.remove(); evalMarker = null; }
+}
+
+async function geocode(address) {
+  const url = `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(address)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!data || data.length === 0) throw new Error("住所が見つかりませんでした");
+  const [lng, lat] = data[0].geometry.coordinates;
+  const title = data[0].properties.title;
+  return { lat, lng, title };
+}
+
+async function runEval() {
+  const address = document.getElementById("evalAddress").value.trim();
+  const area_m2 = parseFloat(document.getElementById("evalArea").value) || 5000;
+  const resultEl = document.getElementById("evalResult");
+
+  if (!address) {
+    resultEl.innerHTML = `<div style="color:#f87171;font-size:13px">住所を入力してください</div>`;
+    return;
+  }
+
+  resultEl.innerHTML = `<div style="color:#64748b;font-size:13px;text-align:center;padding:20px">🔍 評価中...</div>`;
+
+  try {
+    // ① ジオコーディング
+    const { lat, lng, title } = await geocode(address);
+
+    // ② 地図にピンを立てる
+    if (evalMarker) evalMarker.remove();
+    evalMarker = new maplibregl.Marker({ color: "#0ea5e9" })
+      .setLngLat([lng, lat])
+      .setPopup(new maplibregl.Popup().setHTML(`<div style="color:#1e293b;font-size:12px"><b>${title}</b></div>`))
+      .addTo(map);
+    map.flyTo({ center: [lng, lat], zoom: 13, duration: 1000 });
+    closeEvalModal();
+
+    // ③ バックエンドで総合評価
+    const params = new URLSearchParams({ lat, lng, address, area_m2 });
+    const evalRes = await fetch(`${API_BASE}/evaluate?${params}`);
+    if (!evalRes.ok) throw new Error("評価に失敗しました");
+    const d = await evalRes.json();
+
+    // ④ 地震ハザード（J-SHIS直接）
+    const jshisRes = await fetch(`https://www.j-shis.bosai.go.jp/map/api/sstrct/V2/meshinfo.geojson?position=${lng},${lat}&epsg=4326`).catch(() => null);
+    let hazard = null;
+    if (jshisRes?.ok) {
+      const jdata = await jshisRes.json();
+      const props = jdata.features?.[0]?.properties ?? {};
+      if (props.ARV) {
+        const arv = parseFloat(props.ARV);
+        hazard = { arv, avs: parseFloat(props.AVS), terrain: props.JNAME ?? "不明" };
+      }
+    }
+
+    // ⑤ 結果を右パネルに表示
+    showEvalResult(d, hazard, title, area_m2);
+
+  } catch (e) {
+    // モーダルが閉じていたら再表示
+    openEvalModal();
+    document.getElementById("evalResult").innerHTML =
+      `<div style="color:#f87171;font-size:13px;padding:8px">⚠️ ${e.message}</div>`;
+  }
+}
+
+function showEvalResult(d, hazard, title, area_m2) {
+  const panel = document.getElementById("detailPanel");
+  panel.classList.add("open");
+
+  const scoreColor = d.score >= 80 ? "#4ade80" : d.score >= 50 ? "#fbbf24" : "#f87171";
+  const scoreLabel = d.score >= 80 ? "優良" : d.score >= 50 ? "検討可" : "要確認";
+
+  document.getElementById("detailHeader").innerHTML = `
+    <div style="position:absolute;top:8px;right:8px">
+      <button class="detail-close" onclick="closeDetail()">✕</button>
+    </div>
+    <div style="font-size:11px;color:#0ea5e9;font-weight:600;margin-bottom:6px">🔍 住所評価結果</div>
+    <div class="score-label">BESSポテンシャルスコア</div>
+    <div class="score-big" style="color:${scoreColor}">${d.score}<span style="font-size:20px;color:#64748b">/100</span></div>
+    <div style="color:${scoreColor};font-size:13px;font-weight:600;margin-top:2px">${scoreLabel}</div>
+    <div class="site-name" style="margin-top:10px;font-size:14px">${title}</div>
+    <div class="site-addr">📍 ${d.prefecture} / ${d.jepx_area}エリア</div>
+  `;
+
+  const fmt = n => n >= 1e8 ? `${(n/1e8).toFixed(1)}億円` : `${(n/1e6).toFixed(1)}百万円`;
+  const spread = d.jepx?.spread ?? 5.0;
+  const capMw  = area_m2 / 80 / 3;
+  const capKwh = capMw * 1000 * 3;
+  const revJepx = spread * capKwh * 300 * 0.88;
+  const revCap  = capMw * 1000 * (d.jepx?.jepx_score > 60 ? 13000 : 10000);
+  const revTotal = revJepx + revCap;
+
+  document.getElementById("detailBody").innerHTML = `
+    <div class="section-title">📍 位置・系統連系</div>
+    <div class="detail-row"><span class="key">最寄り変電所距離</span><span class="val ${d.substation_dist < 1000 ? 'ok' : d.substation_dist < 2500 ? 'warn' : 'ng'}">${d.substation_dist.toLocaleString()} m</span></div>
+    ${d.nearest_substations.slice(0,3).map(s => `
+    <div class="detail-row" style="padding:4px 0"><span class="key" style="font-size:11px;color:#475569">　${s.name || "変電所"}</span><span class="val" style="font-size:11px;color:#64748b">${s.distance_m.toLocaleString()}m</span></div>`).join("")}
+    <div class="detail-row"><span class="key">評価面積</span><span class="val">${area_m2.toLocaleString()} ㎡</span></div>
+
+    ${d.jepx ? `
+    <div class="section-title" style="margin-top:14px">⚡ JEPX卸価格（${d.jepx.data_year}年）</div>
+    <div class="detail-row"><span class="key">${tip("スプレッド","JEPXスプレッド")}</span><span class="val ok">${d.jepx.spread} 円/kWh</span></div>
+    <div class="detail-row"><span class="key">収益性スコア</span><span class="val ok">${d.jepx.jepx_score} / 100</span></div>` : ""}
+
+    ${d.curtailment ? `
+    <div class="section-title" style="margin-top:14px">🔌 再エネ出力制御</div>
+    <div class="detail-row"><span class="key">${tip("出力制御率（2023年度）","出力制御率")}</span><span class="val ${d.curtailment.rate_2023 > 3 ? 'ok' : ''}">${d.curtailment.rate_2023}%</span></div>
+    <div class="detail-row"><span class="key">BESSニーズスコア</span><span class="val ok">${d.curtailment.curtailment_score} / 100</span></div>` : ""}
+
+    ${hazard ? `
+    <div class="section-title" style="margin-top:14px">🌏 地震・地盤リスク（J-SHIS）</div>
+    <div class="detail-row"><span class="key">${tip("微地形分類","微地形分類")}</span><span class="val">${hazard.terrain}</span></div>
+    <div class="detail-row"><span class="key">${tip("表層地盤増幅率（ARV）","ARV")}</span><span class="val ${hazard.arv <= 2 ? 'ok' : hazard.arv <= 4 ? 'warn' : 'ng'}">${hazard.arv.toFixed(2)}</span></div>` : ""}
+
+    ${d.solar ? `
+    <div class="section-title" style="margin-top:14px">☀️ 太陽光ポテンシャル</div>
+    <div class="detail-row"><span class="key">${tip("年間平均日射量","年間日射量")}</span><span class="val">${d.solar.ghi} kWh/m²/日</span></div>
+    <div class="detail-row"><span class="key">太陽光スコア</span><span class="val">${d.solar.solar_score} / 100</span></div>` : ""}
+
+    <div class="section-title" style="margin-top:14px">💰 収益概算（${area_m2.toLocaleString()}㎡・面積ベース）</div>
+    <div class="detail-row"><span class="key">推定BESS容量</span><span class="val">${(capKwh/1000).toFixed(1)} MWh</span></div>
+    <div class="detail-row"><span class="key">年間収益概算</span><span class="val ok">${fmt(revTotal)}</span></div>
+
+    <div style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px;margin-top:12px;font-size:11px;color:#475569;line-height:1.7">
+      ※ この評価はオープンデータに基づく参考値です。農地クラス・洪水リスク・用途地域は含まれていません。
+      詳細な適地調査は別途専門機関にご相談ください。
+    </div>
+  `;
 }
 
 function openLogicModal() {
