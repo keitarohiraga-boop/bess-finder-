@@ -5,8 +5,20 @@ from typing import Optional, List
 
 from app.database import get_db
 from app import models, schemas
+from app.area_mapping import PREFECTURE_TO_AREA
 
 router = APIRouter(prefix="/sites", tags=["sites"])
+
+
+def _attach_jepx(site: models.Site, db: Session) -> schemas.SiteOut:
+    d = schemas.SiteOut.model_validate(site)
+    if site.prefecture:
+        area = PREFECTURE_TO_AREA.get(site.prefecture)
+        if area:
+            jepx = db.get(models.JepxAreaMetrics, area)
+            if jepx:
+                d.jepx = schemas.JepxMetrics.model_validate(jepx)
+    return d
 
 
 @router.get("", response_model=List[schemas.SiteOut])
@@ -36,7 +48,8 @@ def list_sites(
         models.Site.slope <= slope_max,
     ).order_by(models.Site.score.desc())
 
-    return db.execute(stmt).scalars().all()
+    sites = db.execute(stmt).scalars().all()
+    return [_attach_jepx(s, db) for s in sites]
 
 
 @router.get("/{site_id}", response_model=schemas.SiteOut)
@@ -44,4 +57,4 @@ def get_site(site_id: int, db: Session = Depends(get_db)):
     site = db.get(models.Site, site_id)
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
-    return site
+    return _attach_jepx(site, db)

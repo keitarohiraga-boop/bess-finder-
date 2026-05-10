@@ -2,10 +2,24 @@ from pydantic import BaseModel
 from typing import Optional
 
 
+class JepxMetrics(BaseModel):
+    area: str
+    data_year: int
+    avg_price: float
+    peak_avg: float
+    offpeak_avg: float
+    spread: float
+    volatility: float
+    jepx_score: int
+
+    model_config = {"from_attributes": True}
+
+
 class SiteOut(BaseModel):
     id: int
     name: str
     address: str
+    prefecture: Optional[str]
     area: float
     landuse: str
     landuse_label: str
@@ -20,5 +34,6 @@ class SiteOut(BaseModel):
     score: int
     lat: float
     lng: float
+    jepx: Optional[JepxMetrics] = None
 
     model_config = {"from_attributes": True}
