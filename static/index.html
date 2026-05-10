@@ -1344,8 +1344,8 @@ async function loadEarthquakeHazard(site) {
     if (!res.ok) throw new Error("API error");
     const data = await res.json();
     const props = data.features?.[0]?.properties ?? {};
-    const arv     = props.ARV;
-    const avs     = props.AVS;
+    const arv     = parseFloat(props.ARV);
+    const avs     = parseFloat(props.AVS);
     const terrain = props.JNAME ?? "不明";
     const score   = arvToScore(arv, terrain);
     const d = {
