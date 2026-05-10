@@ -685,6 +685,8 @@ function normalizeApiSite(s) {
     solar: s.solar || null,
     curtailment: s.curtailment || null,
     fitSolar: s.fit_solar || null,
+    outage: s.outage || null,
+    ev: s.ev || null,
   };
 }
 
@@ -1180,6 +1182,8 @@ function showDetail(site) {
       ${site.solar ? scoreBar(`太陽光ポテンシャル（${site.solar.ghi}kWh/m²/日）`, site.solar.solar_score, "fill-yellow") : ""}
       ${site.curtailment ? scoreBar(`出力制御ポテンシャル（${site.curtailment.area}エリア）`, site.curtailment.curtailment_score, "fill-green") : ""}
       ${site.fitSolar ? scoreBar(`FIT太陽光集積度（${site.fitSolar.area}エリア）`, site.fitSolar.fit_score, "fill-blue") : ""}
+      ${site.outage ? scoreBar(`停電バックアップ価値（${site.outage.area}エリア）`, site.outage.outage_score, "fill-red") : ""}
+      ${site.ev ? scoreBar(`EV・V2G需要（${site.ev.prefecture}）`, site.ev.ev_score, "fill-blue") : ""}
     </div>
     ${site.jepx ? `
     <div class="section-title" style="margin-top:16px">JEPX卸価格（${site.jepx.data_year}年）</div>
@@ -1212,6 +1216,22 @@ function showDetail(site) {
     <div class="detail-row"><span class="key">全国シェア</span><span class="val">${site.fitSolar.share_pct}%</span></div>
     <div class="detail-row"><span class="key">集積スコア</span><span class="val ok">${site.fitSolar.fit_score} / 100</span></div>
     <div style="font-size:10px;color:#475569;padding:4px 0 8px">FIT導入量が多いエリアほど将来の出力制御・BESS需要が高まる</div>
+    ` : ""}
+
+    ${site.outage ? `
+    <div class="section-title" style="margin-top:16px">停電リスク・バックアップ価値</div>
+    <div class="detail-row"><span class="key">エリア</span><span class="val">${site.outage.area}</span></div>
+    <div class="detail-row"><span class="key">${tip("年間停電時間（SAIDI）","SAIDI")}</span><span class="val ${site.outage.saidi_min > 15 ? 'ok' : site.outage.saidi_min > 8 ? 'warn' : ''}">${site.outage.saidi_min} 分/年</span></div>
+    <div class="detail-row"><span class="key">主な原因</span><span class="val" style="font-size:11px">${site.outage.main_cause}</span></div>
+    <div class="detail-row"><span class="key">バックアップ価値スコア</span><span class="val ok">${site.outage.outage_score} / 100</span></div>
+    ` : ""}
+
+    ${site.ev ? `
+    <div class="section-title" style="margin-top:16px">EV普及率・V2G需要</div>
+    <div class="detail-row"><span class="key">都道府県</span><span class="val">${site.ev.prefecture}</span></div>
+    <div class="detail-row"><span class="key">${tip("EV普及率","EV普及率")}</span><span class="val">${site.ev.ev_rate_pct}%</span></div>
+    <div class="detail-row"><span class="key">EV登録台数</span><span class="val">${site.ev.ev_count.toLocaleString()} 台</span></div>
+    <div class="detail-row"><span class="key">V2G需要スコア</span><span class="val ok">${site.ev.ev_score} / 100</span></div>
     ` : ""}
 
     ${site.solar ? `
@@ -1748,6 +1768,8 @@ const TIPS = {
   "単純回収期間": "設備投資額（CAPEX）を年間純収益で割った期間。一般的にBESSは10〜15年が目安。補助金活用で短縮できる場合がある。",
   "C-rate":     "蓄電池の充放電速度の指標。1Cは1時間で満充電・満放電、0.5C＝2時間、0.33C＝3時間。容量市場参加には0.33C以下（3時間以上）が必要。",
   "FIT集積スコア": "電力エリア内のFIT（固定価格買取制度）認定太陽光発電の導入量に基づくスコア。導入量が多いエリアほど将来的な出力制御リスクが高く、BESSの経済的価値が高まる。",
+  "SAIDI":          "System Average Interruption Duration Index（需要家平均停電時間）。1需要家あたり年間何分停電するかを示す。値が大きいほど停電が多く、非常用電源としてのBESS価値が高い。",
+  "EV普及率":       "電動車（BEV・PHV）の新車登録に占める割合。普及率が高い地域ではV2G（Vehicle-to-Grid）や急速充電バッファとしてのBESS需要が将来的に高まる。",
   "大口需要家スコア": "半径5km以内の病院・工場・データセンター・大型商業施設の数と距離から算出。BESSからの直接電力供給契約（P2P・オフサイトPPA）の可能性を示す。施設が多く近いほど高スコア。",
   "防災レジリエンス": "半径5km以内の避難所・消防署・医療施設の集積度から算出。自治体や医療機関との非常用電源契約の可能性を示す。災害時の電力供給価値の指標。",
 };
@@ -2073,9 +2095,13 @@ function calcSim(siteId) {
   const cycles  = 300;
   const eff     = 0.88;
 
-  const rev_jepx = spread * cap_kwh * cycles * eff;
-  const rev_cap  = capMktEligible ? power_kw * capPrice : 0;
-  const rev_reg  = power_kw * 2000;
+  const rev_jepx    = spread * cap_kwh * cycles * eff;
+  const rev_cap     = capMktEligible ? power_kw * capPrice : 0;
+  const rev_reg     = power_kw * 2000;
+  // 長期脱炭素電源オークション（第1回実績 約16,747円/kW/年・20年固定）
+  // ※容量市場との重複参加不可。どちらか一方を選択する想定。
+  const longdec_price = 16747;
+  const rev_longdec = capMktEligible ? power_kw * longdec_price : 0;
   const rev_total = rev_jepx + rev_cap + rev_reg;
 
   // ── コスト計算 ──
@@ -2144,6 +2170,15 @@ function calcSim(siteId) {
         <div class="bar-track"><div class="bar-fill" style="background:#a78bfa;width:${barPct(rev_reg)}%"></div></div>
         <div class="bar-val">${fmt(rev_reg)}</div>
       </div>
+    </div>
+    <div style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px;margin-bottom:8px;font-size:11px">
+      <div style="color:#fbbf24;font-weight:600;margin-bottom:4px">📋 長期脱炭素電源オークション（参考）</div>
+      <div style="color:#94a3b8;margin-bottom:4px">容量市場の代替として選択可能。20年間固定収入。</div>
+      <div style="display:flex;justify-content:space-between">
+        <span style="color:#64748b">単価（第1回実績）: ${longdec_price.toLocaleString()}円/kW/年</span>
+        <span style="color:#4ade80;font-weight:600">${capMktEligible ? fmt(rev_longdec) + "/年" : "要件未達"}</span>
+      </div>
+      <div style="color:#475569;font-size:10px;margin-top:4px">※容量市場との重複参加不可。容量市場より単価が高い場合がある。</div>
     </div>
     <div class="sim-warning">
       ※ 概算値です。JEPX裁定は${area}エリアの実績スプレッド（${spread}円/kWh）を使用。

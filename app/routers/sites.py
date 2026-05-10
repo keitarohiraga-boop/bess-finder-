@@ -36,6 +36,16 @@ def _attach_extras(site: models.Site, db: Session) -> schemas.SiteOut:
         if fit_solar:
             d.fit_solar = schemas.FitSolarOut.model_validate(fit_solar)
 
+        # 停電リスク
+        outage = db.get(models.OutageRiskData, area) if area else None
+        if outage:
+            d.outage = schemas.OutageRiskOut.model_validate(outage)
+
+        # EV普及率
+        ev = db.get(models.EVAdoptionData, site.prefecture) if site.prefecture else None
+        if ev:
+            d.ev = schemas.EVAdoptionOut.model_validate(ev)
+
     return d
 
 

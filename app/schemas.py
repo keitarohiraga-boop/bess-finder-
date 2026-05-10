@@ -24,6 +24,24 @@ class SolarOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OutageRiskOut(BaseModel):
+    area: str
+    saidi_min: float
+    outage_score: int
+    main_cause: str
+    data_source: str
+    model_config = {"from_attributes": True}
+
+
+class EVAdoptionOut(BaseModel):
+    prefecture: str
+    ev_count: int
+    ev_rate_pct: float
+    ev_score: int
+    data_source: str
+    model_config = {"from_attributes": True}
+
+
 class FitSolarOut(BaseModel):
     area: str
     capacity_mw: float
@@ -67,5 +85,7 @@ class SiteOut(BaseModel):
     solar: Optional[SolarOut] = None
     curtailment: Optional[CurtailmentOut] = None
     fit_solar: Optional[FitSolarOut] = None
+    outage: Optional[OutageRiskOut] = None
+    ev: Optional[EVAdoptionOut] = None
 
     model_config = {"from_attributes": True}

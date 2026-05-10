@@ -25,6 +25,26 @@ class Site(Base):
     lng = Column(Float)
 
 
+class OutageRiskData(Base):
+    __tablename__ = "outage_risk_data"
+
+    area = Column(String, primary_key=True)
+    saidi_min = Column(Float)       # 年間停電時間（分/需要家）
+    outage_score = Column(Integer)  # バックアップ価値スコア（0〜100）
+    main_cause = Column(String)     # 主な停電原因
+    data_source = Column(String)
+
+
+class EVAdoptionData(Base):
+    __tablename__ = "ev_adoption_data"
+
+    prefecture = Column(String, primary_key=True)
+    ev_count = Column(Integer)      # EV登録台数（台）
+    ev_rate_pct = Column(Float)     # 普及率（%）
+    ev_score = Column(Integer)      # V2G・充電需要スコア（0〜100）
+    data_source = Column(String)
+
+
 class FitSolarData(Base):
     __tablename__ = "fit_solar_data"
 
