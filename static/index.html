@@ -1311,8 +1311,11 @@ function applyPreset(key) {
 
 // タブ切り替え
 function switchTab(name) {
-  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.id === "tab-" + name));
+  ["location","revenue","demand","risk"].forEach(tab => {
+    const card = document.getElementById("scoreCard-" + tab);
+    if (card) card.style.borderColor = tab === name ? "#38bdf8" : "transparent";
+  });
 }
 
 function showDetail(site) {
@@ -1340,11 +1343,14 @@ function showDetail(site) {
     <div class="score-big" id="overallScore" style="color:${sc}">${overall}<span style="font-size:18px;color:#64748b">/100</span></div>
     <div style="color:${sc};font-size:12px;font-weight:600;margin-top:2px">${sl}</div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:10px">
-      ${[["立地","catLocScore",scores.locationScore,"#38bdf8"],["収益","catRevScore",scores.revenueScore,"#4ade80"],
-         ["需要","catDemScore",scores.demandScore,"#fbbf24"],["リスク","catRiskScore",scores.riskScore,"#f87171"]].map(([l,id,v,c])=>`
-        <div style="background:#0f172a;border-radius:6px;padding:6px;text-align:center">
-          <div style="font-size:9px;color:#64748b">${l}</div>
-          <div id="${id}" style="font-size:16px;font-weight:700;color:${scoreColor(v)}">${v}</div>
+      ${[["立地","catLocScore",scores.locationScore,"location"],
+         ["収益","catRevScore",scores.revenueScore,"revenue"],
+         ["需要","catDemScore",scores.demandScore,"demand"],
+         ["規制\nリスク","catRiskScore",scores.riskScore,"risk"]].map(([l,id,v,tab],i)=>`
+        <div id="scoreCard-${tab}" onclick="switchTab('${tab}')"
+          style="background:#0f172a;border-radius:6px;padding:8px 4px;text-align:center;cursor:pointer;border:1px solid ${i===0?'#38bdf8':'transparent'};transition:border-color 0.15s">
+          <div style="font-size:10px;color:#64748b;white-space:pre-line;line-height:1.3">${l}</div>
+          <div id="${id}" style="font-size:20px;font-weight:700;color:${scoreColor(v)};margin-top:2px">${v}</div>
         </div>`).join("")}
     </div>
     <div class="site-name" style="margin-top:10px">${site.name}</div>
@@ -1354,13 +1360,6 @@ function showDetail(site) {
 
   // ボディ：タブ構成
   document.getElementById("detailBody").innerHTML = `
-    <div class="tab-nav">
-      <button class="tab-btn active" data-tab="location" onclick="switchTab('location')">📍 概要・立地</button>
-      <button class="tab-btn" data-tab="revenue" onclick="switchTab('revenue')">💰 収益</button>
-      <button class="tab-btn" data-tab="demand" onclick="switchTab('demand')">🏭 需要</button>
-      <button class="tab-btn" data-tab="risk" onclick="switchTab('risk')">⚖️ 規制・リスク</button>
-    </div>
-
     <!-- 概要・立地タブ -->
     <div id="tab-location" class="tab-content active">
       ${catScoreCard("立地スコア", scores.locationScore)}
