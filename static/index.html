@@ -2586,7 +2586,15 @@ function reportCSS() {
     .irr-card .label{font-size:10px;color:#64748b;margin-bottom:4px}
     .irr-card .num{font-size:20px;font-weight:800}
     .footer{margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;line-height:1.6}
-    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{page-break-after:always}}
+    .page-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:2px solid #0ea5e9;margin-bottom:16px;font-size:10px;color:#94a3b8}
+    .page-footer{position:absolute;bottom:12mm;left:18mm;right:18mm;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:6px}
+    .confidential{display:inline-block;padding:2px 10px;border:1px solid #dc2626;color:#dc2626;font-size:10px;font-weight:700;border-radius:3px}
+    .glossary-term{margin-bottom:8px;padding:8px;background:#f8fafc;border-left:3px solid #0ea5e9;border-radius:0 4px 4px 0}
+    .glossary-term .term{font-weight:700;color:#0f172a;font-size:11px}
+    .glossary-term .def{font-size:10px;color:#475569;margin-top:2px}
+    .chart-guide{font-size:10px;color:#475569;background:#f8fafc;padding:8px;border-radius:4px;margin-top:6px}
+    .copyright{margin-top:20px;padding:12px;background:#f8fafc;border-radius:6px;font-size:9px;color:#64748b;text-align:center;line-height:1.8}
+    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{page-break-after:always;position:relative}}
   `;
 }
 
@@ -2662,7 +2670,17 @@ function buildPDFHTML(d) {
 
       <h2>月次収益分布（季節変動）</h2>
       <div class="bar-chart">${monthBars}</div>
-      <div style="font-size:10px;color:#94a3b8">■赤：夏冬（高需要期）　■黄：春秋（中程度）　■青：春（低需要期）</div>
+      <div style="font-size:10px;color:#64748b;background:#f8fafc;padding:8px;border-radius:4px;margin-top:6px">
+        【グラフの見方】縦軸：月次収益（高いほど大）｜横軸：月
+        <span style="color:#ef4444">■赤</span>：夏冬（高需要期）
+        <span style="color:#f59e0b">■黄</span>：春秋（中程度）
+        <span style="color:#3b82f6">■青</span>：春（低需要期）｜年間平均を1とした季節係数で補正
+      </div>
+      <div style="margin-top:16px;padding:10px;background:#f8fafc;border-radius:6px;font-size:9px;color:#64748b;text-align:center;line-height:1.9;border:1px solid #e2e8f0">
+        &copy; ${today.slice(0,4)} ナチュラルボーン株式会社 / NaturalBorn, Inc. All Rights Reserved.
+        本資料は機密情報を含みます。無断複製・転載・第三者への開示を固く禁じます。
+        Unauthorized reproduction or disclosure to any third party is strictly prohibited. &nbsp;|&nbsp; 文書番号: ${docId} &nbsp;|&nbsp; 作成日: ${today} &nbsp;|&nbsp; 1 / 4
+      </div>
     </div>
 
     <!-- P2: 立地・系統 / 規制リスク -->
@@ -2693,6 +2711,9 @@ function buildPDFHTML(d) {
 
       <h2>申請フロー</h2>
       ${permitRows}
+      <div style="margin-top:16px;padding:10px;background:#f8fafc;border-radius:6px;font-size:9px;color:#64748b;text-align:center;line-height:1.9;border:1px solid #e2e8f0">
+        &copy; ${today.slice(0,4)} ナチュラルボーン株式会社 / NaturalBorn, Inc. All Rights Reserved. 無断複製・転載・第三者への開示を固く禁じます。 &nbsp;|&nbsp; 文書番号: ${docId} &nbsp;|&nbsp; 2 / 4
+      </div>
     </div>
 
     <!-- P3: 収益詳細 / 感度分析 -->
@@ -2709,19 +2730,58 @@ function buildPDFHTML(d) {
       </table>
 
       <h2>感度分析（JEPXスプレッド変化 vs IRR・NPV）</h2>
+      <div style="font-size:10px;color:#64748b;background:#f8fafc;padding:8px;border-radius:4px;margin-bottom:8px">
+        【表の見方】JEPXスプレッドが変動した場合のIRR・NPV変化。ハイライト行（±0%）が現状ベース。IRR10%以上＝優良、7〜10%＝検討可、7%未満＝要再検討。
+      </div>
       <table>
-        <tr><th>スプレッド変化</th><th>IRR</th><th>NPV（割引率8%）</th></tr>
+        <tr><th>スプレッド変化</th><th>IRR（目標10%以上）</th><th>NPV（割引率8%）</th></tr>
         ${sensRows}
       </table>
+      <div style="margin-top:16px;padding:10px;background:#f8fafc;border-radius:6px;font-size:9px;color:#64748b;text-align:center;line-height:1.9;border:1px solid #e2e8f0">
+        &copy; ${today.slice(0,4)} ナチュラルボーン株式会社 / NaturalBorn, Inc. All Rights Reserved. 無断複製・転載・第三者への開示を固く禁じます。 &nbsp;|&nbsp; 文書番号: ${docId} &nbsp;|&nbsp; 3 / 4
+      </div>
+    </div>
 
-      <h2>データ出典・免責事項</h2>
-      <div class="footer">
-        本レポートはBESS Site Finderシステムが公開データを基に自動生成した参考資料です。<br>
-        JEPX卸価格：日本卸電力取引所（${d.site.jepx?.data_year??''}年実績）｜容量市場：OCCTO（オークション実績）｜
-        出力制御：資源エネルギー庁（2023年度）｜地震地盤：防災科学技術研究所J-SHIS｜<br>
-        FIT太陽光：資源エネルギー庁FIT/FIPポータル（2024年度末概算）｜変電所：OpenStreetMap contributors<br><br>
-        ※本資料は投資勧誘を目的とするものではありません。実際の収益・申請結果は市況・個別審査等により異なります。
-        詳細な適地評価・申請手続きは専門機関にご相談ください。
+    <!-- P4: 用語集・データ出典 -->
+    <div class="page">
+      <h2>用語集</h2>
+      ${[['IRR（内部収益率）','Internal Rate of Return。投資の収益率。10%以上＝優良、7～10%＝検討可、7%未満＝要再検討が目安。'],
+         ['NPV（正味現在価値）','Net Present Value。将来のキャッシュフローを現在価値に割り引いた合計から投資額を引いた値。プラスであれば投資価値あり。'],
+         ['JEPXスプレッド','日本卸電力取引所のピーク・オフピーク電力価格差（円/kWh）。BESSはこの差を利用して安く充電・高く放電することで収益を得る。'],
+         ['容量市場','電力の安定供給のために発電・蓄電設備を確保する市場（OCCTO運営）。設備確保だけで年間固定収入が得られる。BESSは1MW以上・3時間放電以上が参加要件。'],
+         ['ARV（表層地盤増幅率）','地震の揺れが地表で増幅される倍率。1.0＝増幅なし、5.0＝5倍に増幅。低いほど地盤が安全で設備コストが下がる。'],
+         ['CAPEX','Capital Expenditure（設備投資額）。蓄電池本体・工事・系統連系費用などの初期投資総額。'],
+         ['O&M費','Operation & Maintenance（運転・保守費）。年間CAPEXの約2%が標準的。'],
+         ['SAIDI','需要家平均停電時間。値が高い地域ほど停電が多く、非常用電源としてのBESS価値が高まる。'],
+         ['出力制御率','再エネ設備が電力会社に発電を止めさせられた割合（%）。高い地域ほどBESSによる電力吸収・再放電の経済価値が高い。'],
+         ['FIT','Feed-in Tariff（固定価格買取制度）。再エネ電力を固定価格で買い取る制度。FIT認定容量が多いエリアはBESS需要が高まる傾向がある。'],
+      ].map(([t,def])=>`<div style="margin-bottom:8px;padding:8px;background:#f8fafc;border-left:3px solid #0ea5e9;border-radius:0 4px 4px 0"><div style="font-weight:700;color:#0f172a;font-size:11px">${t}</div><div style="font-size:10px;color:#475569;margin-top:2px">${def}</div></div>`).join('')}
+
+      <h2>データ出典</h2>
+      <table>
+        <tr><th>データ</th><th>出典</th><th>対象期間</th></tr>
+        <tr><td>JEPX卸電力価格</td><td>日本卸電力取引所（JEPX）</td><td>${d.site.jepx?.data_year??'直近'}年実績</td></tr>
+        <tr><td>容量市場価格</td><td>電力広域的運営推進機関（OCCTO）</td><td>2025～2029年度確定値</td></tr>
+        <tr><td>出力制御実績</td><td>資源エネルギー庁・各電力会社</td><td>2023年度実績・2024年度見通し</td></tr>
+        <tr><td>FIT太陽光導入量</td><td>資源エネルギー庁 FIT/FIPポータル</td><td>2024年度末概算</td></tr>
+        <tr><td>太陽光ポテンシャル</td><td>NEDO MONSOLA-20・気象庁AMeDAS</td><td>2010～2018年統計</td></tr>
+        <tr><td>地震・地盤リスク</td><td>防災科学技術研究所 J-SHIS</td><td>レポート作成時リアルタイム</td></tr>
+        <tr><td>変電所位置情報</td><td>OpenStreetMap contributors</td><td>2026年5月取得</td></tr>
+        <tr><td>停電リスク（SAIDI）</td><td>電気事業連合会 電力供給関連データ集</td><td>2023年度</td></tr>
+        <tr><td>EV普及率</td><td>次世代自動車振興センター</td><td>2023年度末概算</td></tr>
+      </table>
+
+      <h2>免責事項</h2>
+      <div style="font-size:10px;color:#64748b;line-height:1.8">
+        本レポートはナチュラルボーン株式会社のBESS Site Finderシステムが公開データを基に自動生成した参考資料です。投資勧誘・法的助言・専門的な不動産評価を目的とするものではありません。
+        実際の収益・申請結果は、電力市場の動向・系統空き容量・個別審査・税制・補助金・法規制変更等により本資料の試算と大きく異なる場合があります。
+        投資判断は必ず専門機関へのご相談の上、自己責任にてお決めください。データ有効期限: 作成日より6ヶ月。
+      </div>
+      <div style="margin-top:16px;padding:12px 14px;background:#f8fafc;border-radius:6px;font-size:9px;color:#64748b;text-align:center;line-height:2.0;border:1px solid #e2e8f0">
+        &copy; ${today.slice(0,4)} ナチュラルボーン株式会社 / NaturalBorn, Inc. All Rights Reserved.<br>
+        本資料はナチュラルボーン株式会社の機密情報を含みます。無断複製・転載・引用・第三者への開示を固く禁じます。<br>
+        Unauthorized reproduction, distribution, quotation or disclosure of this document to any third party is strictly prohibited.<br>
+        文書番号: ${docId}&nbsp;&nbsp;|&nbsp;&nbsp;作成日: ${today}&nbsp;&nbsp;|&nbsp;&nbsp;データ有効期限: ${new Date(Date.now()+180*24*60*60*1000).toLocaleDateString('ja-JP')}&nbsp;&nbsp;|&nbsp;&nbsp;4 / 4
       </div>
     </div>
   </body></html>`;
@@ -2743,23 +2803,24 @@ function buildInteractiveHTML(d) {
     <title>BESS候補地レポート（インタラクティブ） - ${d.site.name}</title>
     <style>
       ${reportCSS()}
-      body{background:#0f172a;color:#e2e8f0}
-      .page{background:#1e293b;border-radius:12px;margin:16px auto;max-width:900px;min-height:auto;padding:24px}
-      h2{color:#38bdf8;border-left-color:#38bdf8}
-      .kv{background:#0f172a} .kv .k{color:#94a3b8} .kv .v{color:#e2e8f0}
-      .score-card{background:#0f172a;border-color:#334155}
+      body{background:#f8fafc;color:#1e293b}
+      .page{background:#ffffff;border-radius:12px;margin:16px auto;max-width:900px;min-height:auto;padding:24px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+      h1{color:#0f172a}
+      h2{color:#1e293b;border-left-color:#0ea5e9}
+      .kv{background:#f1f5f9} .kv .k{color:#64748b} .kv .v{color:#1e293b}
+      .score-card{background:#f8fafc;border-color:#e2e8f0}
       .score-card .label{color:#64748b}
-      .irr-card{background:#0f172a;border-color:#334155}
-      table th{background:#0f172a;color:#64748b}
-      table td{border-color:#1e293b;color:#cbd5e1}
-      .permit-item{border-color:#334155;background:#0f172a}
-      .footer{color:#475569;border-color:#334155}
+      .irr-card{background:#f8fafc;border-color:#e2e8f0}
+      table th{background:#f1f5f9;color:#475569}
+      table td{border-color:#f1f5f9;color:#334155}
+      .permit-item{border-color:#e2e8f0;background:#f8fafc}
+      .footer{color:#64748b;border-color:#e2e8f0}
       .subtitle{color:#64748b}
-      h1{color:#e2e8f0}
-      .back-link{display:block;text-align:center;padding:16px;color:#38bdf8;font-size:14px;text-decoration:none}
+      .back-link{display:block;text-align:center;padding:16px;color:#0ea5e9;font-size:14px;text-decoration:none;font-weight:600}
     </style></head><body>
     <a href="${appUrl}" class="back-link">← BESS Site Finder に戻る</a>
     ${buildPDFHTML(d).replace('<body>','').replace('</body></html>','')}
+    <div style="margin:24px 16px;padding:12px 16px;background:#f8fafc;border-radius:8px;font-size:10px;color:#64748b;text-align:center;line-height:1.9;border:1px solid #e2e8f0">&copy; 2026 ナチュラルボーン株式会社 / NaturalBorn, Inc. All Rights Reserved.<br>本資料は機密情報を含みます。無断複製・転載・引用・第三者への開示を固く禁じます。<br>Unauthorized reproduction, distribution, quotation or disclosure to any third party is strictly prohibited.</div>
     <a href="${appUrl}" class="back-link">← BESS Site Finder に戻る</a>
     </body></html>`;
 }
