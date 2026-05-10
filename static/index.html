@@ -1352,9 +1352,9 @@ function calcOptimalPreset(site) {
     max_output_mw = 2;  grid_label = "高圧連系・標準（変電所3km超）";
   }
 
-  // ③ 0.5C rate（2時間放電）で出力と容量を最適化
-  const optimal_output_mw = Math.min(cap_from_area * 0.5, max_output_mw);
-  const optimal_cap_mwh   = Math.max(1, optimal_output_mw * 2);
+  // ③ 0.33C rate（3時間放電）で容量市場参加要件を満たす
+  const optimal_output_mw = Math.min(cap_from_area / 3, max_output_mw);
+  const optimal_cap_mwh   = Math.max(3, optimal_output_mw * 3);  // 最低3MWh
 
   // ④ 規模別設備単価
   let unit_price, unit_label;
@@ -1375,7 +1375,7 @@ function calcOptimalPreset(site) {
     rationale: [
       `容量: 土地${site.area.toLocaleString()}㎡ ÷ 80㎡/MWh → ${cap_from_area.toFixed(1)}MWh上限`,
       `出力: ${grid_label}`,
-      `C-rate: 0.5C（系統用BESS標準・2時間放電）`,
+      `C-rate: 0.33C（容量市場参加要件・3時間放電）`,
       `単価: ${unit_price}万円/kWh（${unit_label}）`,
     ],
   };
