@@ -1110,7 +1110,7 @@ function showDetail(site) {
   `;
   // シミュレーターの初期計算 + 地震ハザード取得
   setTimeout(() => calcSim(site.id), 30);
-  if (USE_API) loadEarthquakeHazard(site);
+  loadEarthquakeHazard(site);
 }
 
 // ===== 申請フロー生成 =====
@@ -1320,14 +1320,39 @@ document.getElementById("sortSelect").addEventListener("change", e => {
   renderAll();
 });
 
-// ===== 地震ハザード取得 =====
+// ===== 地震ハザード取得（J-SHIS直接呼び出し） =====
+const TERRAIN_RISK = {
+  "山地": 1, "丘陵": 1, "台地": 1, "段丘": 2,
+  "扇状地": 2, "自然堤防": 3, "砂州・砂礫州": 3, "砂丘": 3,
+  "氾濫平野": 3, "旧河道": 4, "谷底平野": 4, "沖積低地": 4,
+  "後背湿地": 5, "三角州": 5, "干拓地": 5, "埋立地": 5,
+};
+
+function arvToScore(arv, terrain) {
+  if (!arv) return 50;
+  let score = arv <= 1.5 ? 92 : arv <= 2.5 ? 78 : arv <= 3.5 ? 58 : arv <= 5.0 ? 38 : 18;
+  const risk = TERRAIN_RISK[terrain] ?? 3;
+  return Math.max(5, Math.min(100, score - (risk - 3) * 5));
+}
+
 async function loadEarthquakeHazard(site) {
   const el = document.getElementById("earthquakeHazard");
   if (!el) return;
   try {
-    const res = await fetch(`${API_BASE}/hazard/earthquake?lat=${site.lat}&lng=${site.lng}`);
+    const url = `https://www.j-shis.bosai.go.jp/map/api/sstrct/V2/meshinfo.geojson?position=${site.lng},${site.lat}&epsg=4326`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error("API error");
-    const d = await res.json();
+    const data = await res.json();
+    const props = data.features?.[0]?.properties ?? {};
+    const arv     = props.ARV;
+    const avs     = props.AVS;
+    const terrain = props.JNAME ?? "不明";
+    const score   = arvToScore(arv, terrain);
+    const d = {
+      arv, avs, terrain, score,
+      risk_label: score >= 75 ? "低リスク" : score >= 50 ? "中程度" : score >= 30 ? "高リスク" : "要注意",
+      data_source: "防災科学技術研究所 J-SHIS 表層地盤情報 V2",
+    };
 
     const scoreColor = d.score >= 75 ? "#4ade80" : d.score >= 50 ? "#fbbf24" : "#f87171";
     el.innerHTML = `
