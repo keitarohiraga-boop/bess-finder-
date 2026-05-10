@@ -601,6 +601,7 @@ function normalizeApiSite(s) {
     jepx: s.jepx || null,
     solar: s.solar || null,
     curtailment: s.curtailment || null,
+    fitSolar: s.fit_solar || null,
   };
 }
 
@@ -1095,6 +1096,7 @@ function showDetail(site) {
       ${site.jepx ? scoreBar(`JEPX収益性（${site.jepx.area}エリア）`, site.jepx.jepx_score, "fill-green") : ""}
       ${site.solar ? scoreBar(`太陽光ポテンシャル（${site.solar.ghi}kWh/m²/日）`, site.solar.solar_score, "fill-yellow") : ""}
       ${site.curtailment ? scoreBar(`出力制御ポテンシャル（${site.curtailment.area}エリア）`, site.curtailment.curtailment_score, "fill-green") : ""}
+      ${site.fitSolar ? scoreBar(`FIT太陽光集積度（${site.fitSolar.area}エリア）`, site.fitSolar.fit_score, "fill-blue") : ""}
     </div>
     ${site.jepx ? `
     <div class="section-title" style="margin-top:16px">JEPX卸価格（${site.jepx.data_year}年）</div>
@@ -1115,6 +1117,15 @@ function showDetail(site) {
     <div class="detail-row"><span class="key">出力制御率（2024年度見通し）</span><span class="val">${site.curtailment.rate_2024}%</span></div>
     <div class="detail-row"><span class="key">${tip("BESSニーズスコア","BESSニーズスコア")}</span><span class="val ok">${site.curtailment.curtailment_score} / 100</span></div>
     <div style="font-size:10px;color:#475569;padding:4px 0 8px">出力制御率が高いほど、BESSによる蓄電・再放電の経済価値が高い</div>
+    ` : ""}
+
+    ${site.fitSolar ? `
+    <div class="section-title" style="margin-top:16px">FIT太陽光発電 集積度</div>
+    <div class="detail-row"><span class="key">エリア</span><span class="val">${site.fitSolar.area}</span></div>
+    <div class="detail-row"><span class="key">FIT導入量（概算）</span><span class="val">${site.fitSolar.capacity_mw.toLocaleString()} MW</span></div>
+    <div class="detail-row"><span class="key">全国シェア</span><span class="val">${site.fitSolar.share_pct}%</span></div>
+    <div class="detail-row"><span class="key">集積スコア</span><span class="val ok">${site.fitSolar.fit_score} / 100</span></div>
+    <div style="font-size:10px;color:#475569;padding:4px 0 8px">FIT導入量が多いエリアほど将来の出力制御・BESS需要が高まる</div>
     ` : ""}
 
     ${site.solar ? `
@@ -1364,6 +1375,7 @@ const TIPS = {
   "系統連系適合性": "最寄り変電所までの距離に基づくスコア。近いほど系統連系工事費が低く、接続審査も通りやすい傾向がある。",
   "単純回収期間": "設備投資額（CAPEX）を年間純収益で割った期間。一般的にBESSは10〜15年が目安。補助金活用で短縮できる場合がある。",
   "C-rate":     "蓄電池の充放電速度の指標。1Cは1時間で満充電・満放電、0.5C＝2時間、0.33C＝3時間。容量市場参加には0.33C以下（3時間以上）が必要。",
+  "FIT集積スコア": "電力エリア内のFIT（固定価格買取制度）認定太陽光発電の導入量に基づくスコア。導入量が多いエリアほど将来的な出力制御リスクが高く、BESSの経済的価値が高まる。",
 };
 
 function tip(label, key) {

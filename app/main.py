@@ -6,7 +6,7 @@ import os
 
 from app.database import engine
 from app import models
-from app.routers import sites, jepx, substations, solar, curtailment, hazard
+from app.routers import sites, jepx, substations, solar, curtailment, hazard, fit_solar
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -29,6 +29,7 @@ app.include_router(substations.router, prefix="/api/v1")
 app.include_router(solar.router, prefix="/api/v1")
 app.include_router(curtailment.router, prefix="/api/v1")
 app.include_router(hazard.router, prefix="/api/v1")
+app.include_router(fit_solar.router, prefix="/api/v1")
 
 # フロントエンドの静的ファイルを配信
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")

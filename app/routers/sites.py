@@ -31,6 +31,11 @@ def _attach_extras(site: models.Site, db: Session) -> schemas.SiteOut:
         if curtailment:
             d.curtailment = schemas.CurtailmentOut.model_validate(curtailment)
 
+        # FIT太陽光データ
+        fit_solar = db.get(models.FitSolarData, area) if area else None
+        if fit_solar:
+            d.fit_solar = schemas.FitSolarOut.model_validate(fit_solar)
+
     return d
 
 

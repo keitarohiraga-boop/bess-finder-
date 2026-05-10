@@ -25,6 +25,16 @@ class Site(Base):
     lng = Column(Float)
 
 
+class FitSolarData(Base):
+    __tablename__ = "fit_solar_data"
+
+    area = Column(String, primary_key=True)    # JEPXエリア名
+    capacity_mw = Column(Float)                # 太陽光FIT導入量（概算MW）
+    share_pct = Column(Float)                  # 全国シェア（%）
+    fit_score = Column(Integer)                # BESSポテンシャルスコア（0〜100）
+    data_source = Column(String)
+
+
 class CurtailmentData(Base):
     __tablename__ = "curtailment_data"
 
