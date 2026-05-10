@@ -619,7 +619,7 @@
               <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">提供機関</th>
               <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">取得指標</th>
               <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">スコアへの影響</th>
-              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">更新頻度</th>
+              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">更新頻度・信頼度</th>
             </tr>
           </thead>
           <tbody id="logicTableBody"></tbody>
@@ -1674,6 +1674,8 @@ const LOGIC_SOURCES = [
     impact: "JEPX収益性スコア・シミュレーター裁定収益",
     update: "年1回（年次データ）",
     status: "稼働中",
+    confidence: "高",
+    lastUpdated: "2024年度実績",
     url: "https://www.jepx.jp/",
   },
   {
@@ -1683,7 +1685,7 @@ const LOGIC_SOURCES = [
     metric: "エリア別・年度別 オークション約定価格（円/kW/年）",
     impact: "シミュレーター 容量市場収益",
     update: "年1回（オークション結果後）",
-    status: "稼働中",
+    status: "稼働中", confidence: "高", lastUpdated: "2029年度確定",
     url: "https://www.occto.or.jp/",
   },
   {
@@ -1693,7 +1695,7 @@ const LOGIC_SOURCES = [
     metric: "エリア別年間出力制御率（%）・2024年度見通し",
     impact: "BESSニーズスコア（高いほど加点）",
     update: "年1回（年度実績公表後）",
-    status: "稼働中",
+    status: "稼働中", confidence: "高", lastUpdated: "2023年度実績",
     url: "https://www.enecho.meti.go.jp/category/saving_and_new/saiene/grid/04_01.html",
   },
   {
@@ -1703,7 +1705,7 @@ const LOGIC_SOURCES = [
     metric: "電力エリア別FIT認定・導入容量（概算MW）",
     impact: "FIT集積スコア（高いほど将来BESS需要大）",
     update: "年1回（年度末データ）",
-    status: "稼働中",
+    status: "稼働中", confidence: "中", lastUpdated: "2024年度末概算",
     url: "https://www.fit-portal.go.jp/publicinfosummary",
   },
   {
@@ -1713,7 +1715,7 @@ const LOGIC_SOURCES = [
     metric: "都道府県別年間平均日射量（kWh/m²/日）",
     impact: "太陽光スコア（高いほど再エネ集積可能性大）",
     update: "数年に1回",
-    status: "稼働中",
+    status: "稼働中", confidence: "高", lastUpdated: "MONSOLA-20（2010〜2018年）",
     url: "https://www.nedo.go.jp/library/ZZFF_100041.html",
   },
   {
@@ -1723,7 +1725,7 @@ const LOGIC_SOURCES = [
     metric: "表層地盤増幅率（ARV）・S波速度・微地形分類",
     impact: "地盤リスクスコア（低いほど加点）",
     update: "リアルタイム取得",
-    status: "稼働中",
+    status: "稼働中", confidence: "高", lastUpdated: "リアルタイム",
     url: "https://www.j-shis.bosai.go.jp/",
   },
   {
@@ -1733,7 +1735,7 @@ const LOGIC_SOURCES = [
     metric: "全国変電所の緯度経度・名称（264件）",
     impact: "地図レイヤー表示・変電所距離スコア参考",
     update: "随時（OSMデータ更新時）",
-    status: "稼働中",
+    status: "稼働中", confidence: "中", lastUpdated: "2026年5月取得",
     url: "https://www.openstreetmap.org/",
   },
   {
@@ -1743,7 +1745,7 @@ const LOGIC_SOURCES = [
     metric: "農地筆ポリゴン・農地種別（第1〜3種農地）",
     impact: "農地法スコア・申請フロー自動判定",
     update: "年1回（農地ナビ更新時）",
-    status: "API申請中",
+    status: "API申請中", confidence: "－", lastUpdated: "未取得",
     url: "https://wagri.naro.go.jp/",
   },
   {
@@ -1753,7 +1755,7 @@ const LOGIC_SOURCES = [
     metric: "洪水・土砂・津波浸水リスク区域",
     impact: "ハザード安全性スコア・フィルター",
     update: "随時",
-    status: "API申請中",
+    status: "API申請中", confidence: "－", lastUpdated: "未取得",
     url: "https://www.reinfolib.mlit.go.jp/",
   },
   {
@@ -1785,8 +1787,10 @@ function renderLogicTable() {
         <span style="color:${s.impact.includes('加点') || s.impact.includes('収益') ? '#4ade80' : s.impact.includes('リスク') ? '#f87171' : '#94a3b8'}">${s.impact}</span>
       </td>
       <td style="padding:10px 12px;font-size:11px">
-        <div style="color:#64748b">${s.update}</div>
+        <div style="color:#64748b;margin-bottom:3px">${s.update}</div>
         <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:${s.status === '稼働中' ? '#14532d' : '#713f12'};color:${s.status === '稼働中' ? '#4ade80' : '#fbbf24'}">${s.status}</span>
+        ${s.confidence ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;margin-left:3px;background:#1e3a5f;color:#38bdf8">信頼度：${s.confidence}</span>` : ""}
+        ${s.lastUpdated ? `<div style="font-size:10px;color:#475569;margin-top:3px">最終：${s.lastUpdated}</div>` : ""}
       </td>
     </tr>
   `).join("");
@@ -2143,6 +2147,101 @@ async function loadEarthquakeHazard(site) {
   }
 }
 
+// ===== 財務分析ヘルパー =====
+const MONTHLY_MULT = [1.30,1.20,0.90,0.80,0.80,0.90,1.40,1.50,1.10,0.90,1.00,1.20];
+const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const MONTH_AVG = MONTHLY_MULT.reduce((a,b)=>a+b,0)/12;
+
+function calc20YearCF(netRev, capex, degRate=0.02) {
+  const flows = [-capex];
+  for (let y=1; y<=20; y++) flows.push(netRev * Math.pow(1-degRate, y-1));
+  return flows;
+}
+function calcNPV(flows, rate) {
+  return flows.reduce((acc,cf,i) => acc + cf/Math.pow(1+rate,i), 0);
+}
+function calcIRR(flows) {
+  let lo=-0.5, hi=5.0;
+  for (let i=0; i<200; i++) {
+    const mid=(lo+hi)/2;
+    calcNPV(flows,mid)>0 ? lo=mid : hi=mid;
+  }
+  return (lo+hi)/2;
+}
+
+function renderFinancials(netRev, capex, spread, cap_kwh, cycles, eff) {
+  const flows = calc20YearCF(netRev, capex);
+  const irr = calcIRR(flows);
+  const npv8 = calcNPV(flows, 0.08);
+  const npv5 = calcNPV(flows, 0.05);
+  const totalCF = flows.slice(1).reduce((a,b)=>a+b,0) - capex;
+  const fmtM = n => n>=1e8?`${(n/1e8).toFixed(1)}億円`:`${(n/1e6).toFixed(1)}百万円`;
+  const irrPct = (irr*100).toFixed(1);
+  const irrColor = irr>=0.1?'#4ade80':irr>=0.07?'#fbbf24':'#f87171';
+
+  // 月次収益
+  const monthlyRevs = MONTHLY_MULT.map(m => (netRev/12) * (m/MONTH_AVG));
+  const maxMRev = Math.max(...monthlyRevs);
+  const monthBars = MONTH_LABELS.map((label,i) => {
+    const h = Math.round(monthlyRevs[i]/maxMRev*40);
+    const color = MONTHLY_MULT[i]>=1.2?'#f87171':MONTHLY_MULT[i]>=1.0?'#fbbf24':'#38bdf8';
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+      <div style="width:100%;height:${h}px;background:${color};border-radius:2px 2px 0 0;min-height:2px"></div>
+      <div style="font-size:9px;color:#64748b">${label}</div>
+    </div>`;
+  }).join("");
+
+  // 感度分析（IRR）
+  const sensRows = [-30,-20,-10,0,10,20,30].map(pct => {
+    const s2 = spread * (1+pct/100);
+    const rev2 = s2 * cap_kwh * cycles * eff;
+    const irr2 = calcIRR(calc20YearCF(rev2, capex));
+    const c = irr2>=0.10?'#4ade80':irr2>=0.07?'#fbbf24':'#f87171';
+    return `<tr style="border-bottom:1px solid #1e293b">
+      <td style="padding:5px 8px;color:${pct<0?'#f87171':pct>0?'#4ade80':'#94a3b8'};font-weight:600">${pct>0?'+':''}${pct}%</td>
+      <td style="padding:5px 8px;text-align:right;color:${c};font-weight:700">${(irr2*100).toFixed(1)}%</td>
+      <td style="padding:5px 8px;text-align:right;color:#64748b">${fmtM(calcNPV(calc20YearCF(rev2,capex),0.08))}</td>
+    </tr>`;
+  }).join("");
+
+  return `
+    <div style="margin-top:14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">20年財務分析</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px">
+      <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px">IRR</div>
+        <div style="font-size:22px;font-weight:700;color:${irrColor}">${irrPct}%</div>
+        <div style="font-size:9px;color:#475569">内部収益率</div>
+      </div>
+      <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px">NPV（割引率8%）</div>
+        <div style="font-size:14px;font-weight:700;color:${npv8>=0?'#4ade80':'#f87171'}">${fmtM(npv8)}</div>
+        <div style="font-size:9px;color:#475569">${npv8>=0?'投資価値あり':'投資価値なし'}</div>
+      </div>
+      <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px">NPV（割引率5%）</div>
+        <div style="font-size:14px;font-weight:700;color:${npv5>=0?'#4ade80':'#f87171'}">${fmtM(npv5)}</div>
+        <div style="font-size:9px;color:#475569">低リスク想定</div>
+      </div>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">月次収益分布（季節変動）</div>
+    <div style="display:flex;align-items:flex-end;gap:2px;height:60px;margin-bottom:16px;padding:0 2px">
+      ${monthBars}
+    </div>
+
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">感度分析（JEPXスプレッド変化 vs IRR）</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">
+      <thead><tr style="background:#0f172a">
+        <th style="padding:6px 8px;text-align:left;color:#64748b;font-size:10px">スプレッド変化</th>
+        <th style="padding:6px 8px;text-align:right;color:#64748b;font-size:10px">IRR</th>
+        <th style="padding:6px 8px;text-align:right;color:#64748b;font-size:10px">NPV(8%)</th>
+      </tr></thead>
+      <tbody>${sensRows}</tbody>
+    </table>
+    <div style="font-size:10px;color:#475569">※蓄電池劣化率2%/年・20年運用を想定。IRR目標の目安：10%以上＝優良、7〜10%＝検討可、7%未満＝要再検討</div>
+  `;
+}
+
 // ===== 収益シミュレーター =====
 
 // 容量市場 エリア別・年度別 約定価格（円/kW/年）
@@ -2386,6 +2485,7 @@ function calcSim(siteId) {
       容量市場は${year}年度 ${area}エリア約定価格（${capPrice.toLocaleString()}円/kW/年）を使用。
       実際の収益は市況・系統制約・税制・補助金により大きく変動します。
     </div>
+    ${renderFinancials(net_rev, capex, spread, cap_kwh, cycles, eff)}
   `;
 }
 
