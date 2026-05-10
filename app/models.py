@@ -25,6 +25,18 @@ class Site(Base):
     lng = Column(Float)
 
 
+class BessFacility(Base):
+    __tablename__ = "bess_facilities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    capacity_mwh = Column(Float, nullable=True)   # 蓄電容量（MWh）
+    power_mw = Column(Float, nullable=True)        # 出力（MW）
+    lat = Column(Float, nullable=False)
+    lng = Column(Float, nullable=False)
+    osm_id = Column(String, nullable=True)
+
+
 class OutageRiskData(Base):
     __tablename__ = "outage_risk_data"
 
