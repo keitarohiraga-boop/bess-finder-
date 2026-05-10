@@ -256,8 +256,8 @@
     /* 凡例 */
     .legend {
       position: absolute;
-      bottom: 32px;
-      left: 316px;
+      bottom: 24px;
+      right: 12px;
       max-height: calc(100% - 64px);
       overflow-y: auto;
       background: rgba(15,23,42,0.92);
@@ -267,6 +267,13 @@
       font-size: 12px;
       z-index: 10;
       backdrop-filter: blur(4px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .legend.visible {
+      opacity: 1;
+      pointer-events: auto;
     }
     .legend-title { color: #64748b; font-size: 11px; margin-bottom: 8px; }
     .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: #cbd5e1; }
@@ -948,6 +955,7 @@ function initMap() {
     loadSubstations();
     loadBessFacilities();
     loadBessHeatmap();
+    initLegendBehavior();
   });
 }
 
@@ -3216,6 +3224,23 @@ function doExport(format) {
   const csv = toCSV([m.row], m.headers);
   downloadFile(csv, m.filename, "text/csv;charset=utf-8");
   closeExportModal();
+}
+
+// ===== 凡例の表示制御 =====
+function initLegendBehavior() {
+  const legend = document.querySelector(".legend");
+  const mapEl  = document.getElementById("map");
+  if (!legend || !mapEl) return;
+
+  // マップエリアへのマウス入退出
+  mapEl.addEventListener("mouseenter", () => legend.classList.add("visible"));
+  mapEl.addEventListener("mouseleave", () => legend.classList.remove("visible"));
+
+  // ドラッグ中・クリック中は非表示
+  map.on("dragstart",  () => legend.classList.remove("visible"));
+  map.on("dragend",    () => { if (mapEl.matches(":hover")) legend.classList.add("visible"); });
+  map.on("mousedown",  () => legend.classList.remove("visible"));
+  map.on("mouseup",    () => { if (mapEl.matches(":hover")) legend.classList.add("visible"); });
 }
 
 // ===== 起動 =====
