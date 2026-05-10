@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine
 from app import models
-from app.routers import sites, jepx, substations, solar
+from app.routers import sites, jepx, substations, solar, curtailment
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -24,6 +24,7 @@ app.include_router(sites.router, prefix="/api/v1")
 app.include_router(jepx.router, prefix="/api/v1")
 app.include_router(substations.router, prefix="/api/v1")
 app.include_router(solar.router, prefix="/api/v1")
+app.include_router(curtailment.router, prefix="/api/v1")
 
 
 @app.get("/")

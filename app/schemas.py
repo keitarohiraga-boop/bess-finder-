@@ -24,6 +24,16 @@ class SolarOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CurtailmentOut(BaseModel):
+    area: str
+    rate_2023: float
+    rate_2024: float
+    curtailment_score: int
+    data_source: str
+
+    model_config = {"from_attributes": True}
+
+
 class SiteOut(BaseModel):
     id: int
     name: str
@@ -45,5 +55,6 @@ class SiteOut(BaseModel):
     lng: float
     jepx: Optional[JepxMetrics] = None
     solar: Optional[SolarOut] = None
+    curtailment: Optional[CurtailmentOut] = None
 
     model_config = {"from_attributes": True}

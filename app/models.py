@@ -25,6 +25,16 @@ class Site(Base):
     lng = Column(Float)
 
 
+class CurtailmentData(Base):
+    __tablename__ = "curtailment_data"
+
+    area = Column(String, primary_key=True)   # JEPXエリア名
+    rate_2023 = Column(Float)                  # 2023年度出力制御率（%）
+    rate_2024 = Column(Float)                  # 2024年度見通し（%）
+    curtailment_score = Column(Integer)        # BESSポテンシャルスコア（0〜100）
+    data_source = Column(String)
+
+
 class SolarPotential(Base):
     __tablename__ = "solar_potential"
 
