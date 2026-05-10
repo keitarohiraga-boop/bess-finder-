@@ -1190,6 +1190,9 @@ function showDetail(site) {
     <div class="detail-row"><span class="key">${tip("ピーク差（スプレッド）","JEPXスプレッド")}</span><span class="val ${site.jepx.spread > 5 ? 'ok' : site.jepx.spread > 2 ? 'warn' : ''}">${site.jepx.spread} 円/kWh</span></div>
     <div class="detail-row"><span class="key">${tip("収益性スコア","JEPX収益性スコア")}</span><span class="val ok">${site.jepx.jepx_score} / 100</span></div>
     ` : ""}
+    <div class="section-title" style="margin-top:16px">周辺需要家・防災施設（半径5km）</div>
+    <div id="demandFacilities" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
+
     <div class="section-title" style="margin-top:16px">地震・地盤リスク（J-SHIS）</div>
     <div id="earthquakeHazard" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
 
@@ -1230,9 +1233,10 @@ function showDetail(site) {
       <button class="action-btn btn-secondary" onclick="alert('詳細レポートをPDF出力します（本番版で実装）')">📄 レポート出力</button>
     </div>
   `;
-  // シミュレーターの初期計算 + 地震ハザード取得
+  // シミュレーターの初期計算 + 周辺施設 + 地震ハザード取得
   setTimeout(() => calcSim(site.id), 30);
   loadEarthquakeHazard(site);
+  loadDemandFacilities(site.lat, site.lng, "demandFacilities");
 }
 
 // ===== 申請フロー生成 =====
@@ -1706,11 +1710,16 @@ function showEvalResult(d, hazard, title, area_m2) {
     <div class="detail-row"><span class="key">推定BESS容量</span><span class="val">${(capKwh/1000).toFixed(1)} MWh</span></div>
     <div class="detail-row"><span class="key">年間収益概算</span><span class="val ok">${fmt(revTotal)}</span></div>
 
+    <div class="section-title" style="margin-top:14px">🏭 周辺需要家・防災施設（半径5km）</div>
+    <div id="evalDemandFacilities" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
+
     <div style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px;margin-top:12px;font-size:11px;color:#475569;line-height:1.7">
       ※ この評価はオープンデータに基づく参考値です。農地クラス・洪水リスク・用途地域は含まれていません。
       詳細な適地調査は別途専門機関にご相談ください。
     </div>
   `;
+  loadEarthquakeHazard({ lat: d.lat, lng: d.lng, id: "eval" });
+  loadDemandFacilities(d.lat, d.lng, "evalDemandFacilities");
 }
 
 function openLogicModal() {
@@ -1739,6 +1748,8 @@ const TIPS = {
   "単純回収期間": "設備投資額（CAPEX）を年間純収益で割った期間。一般的にBESSは10〜15年が目安。補助金活用で短縮できる場合がある。",
   "C-rate":     "蓄電池の充放電速度の指標。1Cは1時間で満充電・満放電、0.5C＝2時間、0.33C＝3時間。容量市場参加には0.33C以下（3時間以上）が必要。",
   "FIT集積スコア": "電力エリア内のFIT（固定価格買取制度）認定太陽光発電の導入量に基づくスコア。導入量が多いエリアほど将来的な出力制御リスクが高く、BESSの経済的価値が高まる。",
+  "大口需要家スコア": "半径5km以内の病院・工場・データセンター・大型商業施設の数と距離から算出。BESSからの直接電力供給契約（P2P・オフサイトPPA）の可能性を示す。施設が多く近いほど高スコア。",
+  "防災レジリエンス": "半径5km以内の避難所・消防署・医療施設の集積度から算出。自治体や医療機関との非常用電源契約の可能性を示す。災害時の電力供給価値の指標。",
 };
 
 function tip(label, key) {
@@ -1797,6 +1808,69 @@ function positionTip(icon, el) {
 document.addEventListener("click", e => {
   if (!e.target.classList.contains("tip-icon")) hideTip();
 });
+
+// ===== 周辺需要家・防災施設 =====
+async function loadDemandFacilities(lat, lng, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = `<div style="color:#475569;font-size:11px;padding:4px 0">周辺施設を取得中...</div>`;
+  try {
+    const res = await fetch(`${API_BASE}/demand?lat=${lat}&lng=${lng}&radius=5000`);
+    if (!res.ok) throw new Error();
+    const d = await res.json();
+    renderDemand(el, d);
+  } catch {
+    el.innerHTML = `<div style="color:#475569;font-size:11px">施設データを取得できませんでした</div>`;
+  }
+}
+
+function renderDemand(el, d) {
+  if (d.total === 0) {
+    el.innerHTML = `<div style="color:#475569;font-size:11px">半径5km以内に該当施設なし</div>`;
+    return;
+  }
+
+  const LABELS = {
+    hospital: "🏥 病院・医療機関", industrial: "🏭 工場・工業施設",
+    datacenter: "🖥️ データセンター", commercial: "🏬 大型商業施設",
+    fire_station: "🚒 消防署", shelter: "⛺ 避難所", university: "🎓 大学・高専",
+  };
+
+  const countRows = Object.entries(d.counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([kind, cnt]) => `
+      <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px">
+        <span style="color:#94a3b8">${LABELS[kind] ?? kind}</span>
+        <span style="color:#e2e8f0;font-weight:600">${cnt}件</span>
+      </div>`)
+    .join("");
+
+  const nearestRows = d.facilities.slice(0, 5).map(f => `
+    <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;border-bottom:1px solid #1e293b">
+      <span style="color:#94a3b8">${f.name.length > 16 ? f.name.slice(0,16)+"…" : f.name}</span>
+      <span style="color:#64748b">${(f.dist_m/1000).toFixed(1)}km</span>
+    </div>`).join("");
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px">
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px">大口需要家スコア</div>
+        <div style="font-size:20px;font-weight:700;color:${d.demand_score>=60?'#4ade80':d.demand_score>=30?'#fbbf24':'#94a3b8'}">${d.demand_score}</div>
+        <div style="font-size:10px;color:#475569">/ 100</div>
+      </div>
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px">
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px">防災レジリエンス</div>
+        <div style="font-size:20px;font-weight:700;color:${d.resilience_score>=60?'#4ade80':d.resilience_score>=30?'#fbbf24':'#94a3b8'}">${d.resilience_score}</div>
+        <div style="font-size:10px;color:#475569">/ 100</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:4px">施設種別（半径5km・計${d.total}件）</div>
+    ${countRows}
+    <div style="font-size:11px;color:#64748b;margin:8px 0 4px">最寄り施設</div>
+    ${nearestRows}
+    <div style="font-size:10px;color:#475569;margin-top:6px">出典: OpenStreetMap contributors</div>
+  `;
+}
 
 // ===== 地震ハザード取得（J-SHIS直接呼び出し） =====
 const TERRAIN_RISK = {
