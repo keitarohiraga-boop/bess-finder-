@@ -558,7 +558,8 @@
       <div class="legend-item"><div class="legend-dot" style="background:#94a3b8; opacity:0.5"></div>フィルター除外</div>
       <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>変電所</div>
       <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>既存BESS施設（OSM）</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#ef4444;opacity:0.5"></div>BESSエリア密度（赤=高）</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ef4444;opacity:0.6"></div>BESS市場密度（赤=高）</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1d4ed8;opacity:0.6"></div>BESS市場密度（青=低）</div>
     </div>
     <div class="datasource-note">地図：国土地理院 / データ：デモ用サンプル</div>
     <!-- 住所で評価モーダル -->
@@ -1003,104 +1004,97 @@ function addMapSources() {
   map.on("mouseleave", "sites-circle", () => map.getCanvas().style.cursor = "");
 }
 
-// ===== BESSエリア密度ヒートマップ =====
-const AREA_CENTERS = {
-  '北海道': [143.0, 43.5],
-  '東北':   [141.0, 39.5],
-  '東京':   [139.5, 36.0],
-  '中部':   [137.5, 35.5],
-  '北陸':   [136.5, 36.5],
-  '関西':   [135.5, 34.8],
-  '中国':   [133.0, 34.5],
-  '四国':   [133.5, 33.5],
-  '九州':   [130.8, 32.5],
+// ===== BESSエリア密度コロプレスマップ =====
+// 都道府県→JEPXエリアマッピング
+const PREF_TO_AREA = {
+  '北海道':'北海道',
+  '青森県':'東北','岩手県':'東北','秋田県':'東北','宮城県':'東北',
+  '山形県':'東北','福島県':'東北','新潟県':'東北',
+  '東京都':'東京','神奈川県':'東京','埼玉県':'東京','千葉県':'東京',
+  '栃木県':'東京','群馬県':'東京','茨城県':'東京','山梨県':'東京','静岡県':'東京',
+  '愛知県':'中部','長野県':'中部','岐阜県':'中部',
+  '石川県':'北陸','富山県':'北陸','福井県':'北陸',
+  '大阪府':'関西','兵庫県':'関西','京都府':'関西',
+  '滋賀県':'関西','奈良県':'関西','和歌山県':'関西','三重県':'関西',
+  '岡山県':'中国','広島県':'中国','山口県':'中国','島根県':'中国','鳥取県':'中国',
+  '愛媛県':'四国','香川県':'四国','高知県':'四国','徳島県':'四国',
+  '福岡県':'九州','佐賀県':'九州','長崎県':'九州','熊本県':'九州',
+  '大分県':'九州','宮崎県':'九州','鹿児島県':'九州','沖縄県':'九州',
 };
 
-function loadBessHeatmap() {
-  const maxMW = Math.max(...Object.values(AREA_POLICY).map(a => a.bess_mw));
+async function loadBessHeatmap() {
+  try {
+    const res = await fetch(
+      "https://raw.githubusercontent.com/dataofjapan/land/master/japan.geojson"
+    );
+    if (!res.ok) throw new Error("GeoJSON取得失敗");
+    const geojson = await res.json();
 
-  const geojson = {
-    type: "FeatureCollection",
-    features: Object.entries(AREA_POLICY).map(([area, data]) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: AREA_CENTERS[area] ?? [135, 35] },
-      properties: {
-        area,
-        bess_mw: data.bess_mw,
-        score: data.score,
-        label: data.label,
-        ratio: data.bess_mw / maxMW,
+    const maxMW = Math.max(...Object.values(AREA_POLICY).map(a => a.bess_mw));
+
+    geojson.features.forEach(f => {
+      const prefName = f.properties.nam_ja;
+      const area = PREF_TO_AREA[prefName];
+      const policy = area ? AREA_POLICY[area] : null;
+      f.properties.bess_area  = area ?? '不明';
+      f.properties.bess_mw    = policy?.bess_mw ?? 0;
+      f.properties.bess_score = policy?.score ?? 0;
+      f.properties.bess_label = policy?.label ?? '';
+      f.properties.bess_ratio = policy ? policy.bess_mw / maxMW : 0;
+    });
+
+    if (map.getSource("pref-bess")) {
+      map.getSource("pref-bess").setData(geojson);
+      return;
+    }
+
+    map.addSource("pref-bess", { type: "geojson", data: geojson });
+
+    map.addLayer({
+      id: "pref-bess-fill",
+      type: "fill",
+      source: "pref-bess",
+      paint: {
+        "fill-color": ["interpolate", ["linear"], ["get", "bess_ratio"],
+          0, "#1e3a5f",
+          0.4, "#1d4ed8",
+          0.7, "#f59e0b",
+          1, "#ef4444",
+        ],
+        "fill-opacity": 0.35,
       }
-    }))
-  };
+    }, "sites-circle");
 
-  if (map.getSource("bess-heatmap")) {
-    map.getSource("bess-heatmap").setData(geojson);
-    return;
+    map.addLayer({
+      id: "pref-bess-border",
+      type: "line",
+      source: "pref-bess",
+      paint: {
+        "line-color": "#334155",
+        "line-width": 0.5,
+        "line-opacity": 0.5,
+      }
+    }, "sites-circle");
+
+    map.on("click", "pref-bess-fill", (e) => {
+      const p = e.features[0].properties;
+      if (!p.bess_area || p.bess_area === '不明') return;
+      new maplibregl.Popup()
+        .setLngLat(e.lngLat)
+        .setHTML(`<div style="font-size:12px;color:#1e293b">
+          <b>🔋 ${p.bess_area}エリア BESS市場</b><br>
+          接続検討量: <b>${Number(p.bess_mw).toLocaleString()} MW</b><br>
+          市場成熟度スコア: <b>${p.bess_score} / 100</b><br>
+          <span style="font-size:11px;color:#475569">${p.bess_label}</span>
+        </div>`)
+        .addTo(map);
+    });
+    map.on("mouseenter", "pref-bess-fill", () => map.getCanvas().style.cursor = "pointer");
+    map.on("mouseleave", "pref-bess-fill", () => map.getCanvas().style.cursor = "");
+
+  } catch (e) {
+    console.warn("BESSコロプレス取得失敗:", e);
   }
-
-  map.addSource("bess-heatmap", { type: "geojson", data: geojson });
-
-  // 外側の大きな半透明サークル（密度表現）
-  map.addLayer({
-    id: "bess-heatmap-outer",
-    type: "circle",
-    source: "bess-heatmap",
-    paint: {
-      "circle-radius": ["interpolate", ["linear"], ["zoom"],
-        4, ["*", ["get", "ratio"], 40],
-        8, ["*", ["get", "ratio"], 100],
-      ],
-      "circle-color": ["interpolate", ["linear"], ["get", "score"],
-        50, "#3b82f6",
-        70, "#f59e0b",
-        90, "#ef4444",
-      ],
-      "circle-opacity": 0.15,
-      "circle-stroke-width": 1,
-      "circle-stroke-color": ["interpolate", ["linear"], ["get", "score"],
-        50, "#3b82f6",
-        70, "#f59e0b",
-        90, "#ef4444",
-      ],
-      "circle-stroke-opacity": 0.4,
-    }
-  }, "sites-circle");
-
-  // 内側の濃いサークル
-  map.addLayer({
-    id: "bess-heatmap-inner",
-    type: "circle",
-    source: "bess-heatmap",
-    paint: {
-      "circle-radius": ["interpolate", ["linear"], ["zoom"],
-        4, ["*", ["get", "ratio"], 12],
-        8, ["*", ["get", "ratio"], 30],
-      ],
-      "circle-color": ["interpolate", ["linear"], ["get", "score"],
-        50, "#3b82f6",
-        70, "#f59e0b",
-        90, "#ef4444",
-      ],
-      "circle-opacity": 0.4,
-    }
-  }, "sites-circle");
-
-  // クリックでポップアップ
-  map.on("click", "bess-heatmap-inner", (e) => {
-    const p = e.features[0].properties;
-    new maplibregl.Popup()
-      .setLngLat(e.lngLat)
-      .setHTML(`<div style="font-size:12px;color:#1e293b">
-        <b>🔋 ${p.area}エリア BESS市場</b><br>
-        接続検討量: <b>${p.bess_mw.toLocaleString()} MW</b><br>
-        市場成熟度スコア: <b>${p.score} / 100</b><br>
-        <span style="color:#64748b;font-size:11px">${p.label}</span>
-      </div>`)
-      .addTo(map);
-  });
-  map.on("mouseenter", "bess-heatmap-inner", () => map.getCanvas().style.cursor = "pointer");
-  map.on("mouseleave", "bess-heatmap-inner", () => map.getCanvas().style.cursor = "");
 }
 
 async function loadBessFacilities() {
