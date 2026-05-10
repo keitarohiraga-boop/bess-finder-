@@ -1320,12 +1320,16 @@ document.getElementById("sortSelect").addEventListener("change", e => {
 
 // 容量市場 エリア別・年度別 約定価格（円/kW/年）
 // 出典: OCCTO メインオークション・追加オークション結果
+// ※ 2030年度以降は見通し（参考値）。実際の入札は各年のオークションで決定。
 const CAPACITY_MARKET = {
-  2025: { 北海道: 5242, 東北: 4500, 東京: 5000, 中部: 3500, 北陸: 3200, 関西: 3109, 中国: 3500, 四国: 3800, 九州: 4800, label: "第2回実績（確定）" },
-  2026: { 北海道: 8749, 東北: 8749, 東京: 8749, 中部: 8749, 北陸: 8213, 関西: 8213, 中国: 8213, 四国: 8213, 九州: 8591, label: "追加オークション実績（確定）" },
-  2027: { 北海道: 13287, 東北: 10500, 東京: 12000, 中部: 8200, 北陸: 7823, 関西: 8200, 中国: 9000, 四国: 9500, 九州: 11000, label: "第4回実績（確定）" },
-  2028: { 北海道: 14812, 東北: 12500, 東京: 13500, 中部: 10280, 北陸: 10500, 関西: 11000, 中国: 11500, 四国: 12000, 九州: 13000, label: "第5回実績（確定）" },
-  2029: { 北海道: 15112, 東北: 15111, 東京: 15112, 中部: 15111, 北陸: 15111, 関西: 15111, 中国: 15112, 四国: 15112, 九州: 15112, label: "第6回実績（確定）" },
+  2025: { 北海道: 5242, 東北: 4500, 東京: 5000, 中部: 3500, 北陸: 3200, 関西: 3109, 中国: 3500, 四国: 3800, 九州: 4800,   confirmed: true,  label: "第2回確定（新規入札不可）" },
+  2026: { 北海道: 8749, 東北: 8749, 東京: 8749, 中部: 8749, 北陸: 8213, 関西: 8213, 中国: 8213, 四国: 8213, 九州: 8591,   confirmed: true,  label: "追加オークション確定（新規入札不可）" },
+  2027: { 北海道: 13287, 東北: 10500, 東京: 12000, 中部: 8200, 北陸: 7823, 関西: 8200, 中国: 9000, 四国: 9500, 九州: 11000, confirmed: true,  label: "第4回確定（新規入札不可）" },
+  2028: { 北海道: 14812, 東北: 12500, 東京: 13500, 中部: 10280, 北陸: 10500, 関西: 11000, 中国: 11500, 四国: 12000, 九州: 13000, confirmed: true, label: "第5回確定（新規入札不可）" },
+  2029: { 北海道: 15112, 東北: 15111, 東京: 15112, 中部: 15111, 北陸: 15111, 関西: 15111, 中国: 15112, 四国: 15112, 九州: 15112, confirmed: true, label: "第6回確定（新規入札不可）" },
+  2030: { 北海道: 14500, 東北: 14000, 東京: 14500, 中部: 13500, 北陸: 13000, 関西: 13500, 中国: 13500, 四国: 14000, 九州: 14000, confirmed: false, label: "第7回見通し（参考値・入札中）" },
+  2031: { 北海道: 13500, 東北: 13000, 東京: 13500, 中部: 12500, 北陸: 12000, 関西: 12500, 中国: 12500, 四国: 13000, 九州: 13000, confirmed: false, label: "第8回見通し（参考値・未実施）" },
+  2032: { 北海道: 13000, 東北: 12500, 東京: 13000, 中部: 12000, 北陸: 11500, 関西: 12000, 中国: 12000, 四国: 12500, 九州: 12500, confirmed: false, label: "第9回見通し（参考値・未実施）" },
 };
 
 const CAPACITY_YEARS = Object.keys(CAPACITY_MARKET).map(Number);
@@ -1458,6 +1462,7 @@ function calcSim(siteId) {
   // ── 容量市場価格（エリア・年度別） ──
   const area = site.jepx?.area ?? "東京";
   const { price: capPrice, label: capLabel } = getCapacityPrice(area, year);
+  const capConfirmed = CAPACITY_MARKET[year]?.confirmed ?? false;
 
   // ── 収益計算 ──
   const spread  = site.jepx?.spread ?? 5.0;
@@ -1488,9 +1493,9 @@ function calcSim(siteId) {
       ⚠️ 容量市場参加要件未達：${capWarnings.join(" / ")}<br>
       <span style="color:#94a3b8">容量市場収益は0円で計算しています</span>
     </div>` : `
-    <div style="background:#14532d;border:1px solid #4ade80;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#86efac">
-      ✅ 容量市場参加要件クリア（${power_mw}MW・${duration_h.toFixed(1)}h放電）<br>
-      ${area}エリア ${year}年度：${capPrice.toLocaleString()}円/kW/年（${capLabel}）
+    <div style="background:${capConfirmed ? '#1e3a1e' : '#1a2a1a'};border:1px solid ${capConfirmed ? '#4ade80' : '#fbbf24'};border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:${capConfirmed ? '#86efac' : '#fde68a'}">
+      ${capConfirmed ? '✅ 確定価格' : '📊 見通し価格（参考値）'}　${area}エリア ${year}年度：${capPrice.toLocaleString()}円/kW/年<br>
+      <span style="color:#94a3b8">${capLabel}${capConfirmed ? '　※この年度への新規入札はできません' : '　※実際の価格はオークション結果で決定'}</span>
     </div>`}
 
     <div class="sim-result-grid">
