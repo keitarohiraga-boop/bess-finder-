@@ -389,39 +389,29 @@
     .sim-warning { font-size: 10px; color: #475569; border-top: 1px solid #1e293b; padding-top: 8px; margin-top: 8px; line-height: 1.6; }
 
     /* ===== ツールチップ ===== */
-    .tip-wrap { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+    .tip-wrap { display: inline-flex; align-items: center; gap: 4px; }
     .tip-icon {
       display: inline-flex; align-items: center; justify-content: center;
       width: 14px; height: 14px; border-radius: 50%;
       background: #334155; color: #94a3b8; font-size: 9px; font-weight: 700;
       cursor: help; flex-shrink: 0; line-height: 1;
     }
-    .tip-box {
+    #tipFloating {
       display: none;
-      position: absolute;
-      bottom: calc(100% + 6px);
-      right: -5px;
+      position: fixed;
       background: #0f172a;
       border: 1px solid #475569;
-      border-radius: 6px;
-      padding: 8px 10px;
+      border-radius: 8px;
+      padding: 10px 12px;
       font-size: 11px;
       color: #cbd5e1;
-      line-height: 1.6;
-      width: 220px;
-      z-index: 300;
+      line-height: 1.7;
+      width: 240px;
+      z-index: 500;
       pointer-events: none;
-      white-space: normal;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
     }
-    .tip-box::after {
-      content: '';
-      position: absolute;
-      top: 100%; right: 8px;
-      border: 5px solid transparent;
-      border-top-color: #475569;
-    }
-    .tip-wrap:hover .tip-box,
-    .tip-wrap.active .tip-box { display: block; }
+    #tipFloating.visible { display: block; }
   </style>
 </head>
 <body>
@@ -527,6 +517,9 @@
       <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>変電所</div>
     </div>
     <div class="datasource-note">地図：国土地理院 / データ：デモ用サンプル</div>
+    <!-- フローティングツールチップ -->
+    <div id="tipFloating"></div>
+
     <!-- エクスポートモーダル -->
     <div class="export-modal-bg" id="exportModalBg" onclick="if(event.target===this)closeExportModal()">
       <div class="export-modal">
@@ -1376,8 +1369,59 @@ const TIPS = {
 function tip(label, key) {
   const text = TIPS[key] || TIPS[label];
   if (!text) return label;
-  return `<span class="tip-wrap">${label}<span class="tip-icon" onclick="this.parentNode.classList.toggle('active')">?</span><span class="tip-box">${text}</span></span>`;
+  return `<span class="tip-wrap">${label}<span class="tip-icon" data-tip="${key||label}" onmouseenter="showTip(this)" onmouseleave="hideTip()" onclick="toggleTip(this)">?</span></span>`;
 }
+
+const tipEl = () => document.getElementById("tipFloating");
+
+function showTip(icon) {
+  const key = icon.dataset.tip;
+  const text = TIPS[key];
+  if (!text) return;
+  const el = tipEl();
+  el.textContent = text;
+  el.classList.add("visible");
+  positionTip(icon, el);
+}
+
+function hideTip() {
+  tipEl().classList.remove("visible");
+}
+
+function toggleTip(icon) {
+  const el = tipEl();
+  if (el.classList.contains("visible") && el._lastIcon === icon) {
+    hideTip();
+    el._lastIcon = null;
+  } else {
+    showTip(icon);
+    el._lastIcon = icon;
+  }
+}
+
+function positionTip(icon, el) {
+  const rect = icon.getBoundingClientRect();
+  const tw = el.offsetWidth || 240;
+  const th = el.offsetHeight || 80;
+  const vw = window.innerWidth;
+
+  // 上に表示
+  let top = rect.top - th - 8;
+  if (top < 8) top = rect.bottom + 8; // 上がはみ出すなら下に
+
+  // 水平位置：アイコン中心を基準に、画面内に収まるよう調整
+  let left = rect.left + rect.width / 2 - tw / 2;
+  if (left < 8) left = 8;
+  if (left + tw > vw - 8) left = vw - tw - 8;
+
+  el.style.top  = `${top}px`;
+  el.style.left = `${left}px`;
+}
+
+// パネル外クリックで閉じる
+document.addEventListener("click", e => {
+  if (!e.target.classList.contains("tip-icon")) hideTip();
+});
 
 // ===== 地震ハザード取得（J-SHIS直接呼び出し） =====
 const TERRAIN_RISK = {
