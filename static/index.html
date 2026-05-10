@@ -388,6 +388,35 @@
     .sim-bar-item .bar-val { width: 70px; text-align: right; color: #e2e8f0; flex-shrink: 0; }
     .sim-warning { font-size: 10px; color: #475569; border-top: 1px solid #1e293b; padding-top: 8px; margin-top: 8px; line-height: 1.6; }
 
+    /* ===== タブ ===== */
+    .tab-nav { display: flex; border-bottom: 1px solid #334155; margin: 0 -20px; padding: 0 20px; gap: 2px; flex-shrink: 0; }
+    .tab-btn { padding: 8px 12px; background: none; border: none; border-bottom: 2px solid transparent; color: #64748b; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap; transition: color 0.15s; }
+    .tab-btn:hover { color: #94a3b8; }
+    .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+    .tab-content { display: none; padding-top: 12px; }
+    .tab-content.active { display: block; }
+    .cat-score-card {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #0f172a; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px;
+    }
+    .cat-score-num { font-size: 32px; font-weight: 700; line-height: 1; }
+    .cat-score-label { font-size: 11px; color: #64748b; margin-top: 3px; }
+
+    /* ===== 重みづけパネル ===== */
+    .weight-panel {
+      display: none; position: fixed; top: 56px; right: 330px;
+      background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+      padding: 16px; width: 280px; z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .weight-panel.open { display: block; }
+    .weight-row { margin-bottom: 12px; }
+    .weight-row label { font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between; margin-bottom: 5px; }
+    .weight-row label span { color: #38bdf8; font-weight: 700; }
+    .weight-total { font-size: 12px; text-align: center; padding: 6px; border-top: 1px solid #334155; margin-top: 8px; }
+    .preset-btns { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; }
+    .preset-btn { font-size: 11px; padding: 4px 8px; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #94a3b8; cursor: pointer; }
+    .preset-btn:hover { border-color: #38bdf8; color: #e2e8f0; }
+
     /* ===== ツールチップ ===== */
     .tip-wrap { display: inline-flex; align-items: center; gap: 4px; }
     .tip-icon {
@@ -424,6 +453,10 @@
   <button onclick="openEvalModal()"
     style="background:#0ea5e9;border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">
     🔍 住所で評価
+  </button>
+  <button onclick="toggleWeightPanel()"
+    style="background:#1e293b;border:1px solid #475569;color:#94a3b8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
+    ⚙️ 重みづけ
   </button>
   <button onclick="openLogicModal()"
     style="margin-left:auto;background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
@@ -597,6 +630,37 @@
           ※ J-SHIS地震ハザードは候補地クリック時にリアルタイム取得。その他は定期的にデータを更新。<br>
           ※ 農地データ（WAGRI）は申請中。取得次第、実データに切り替え予定。
         </div>
+      </div>
+    </div>
+
+    <!-- 重みづけパネル -->
+    <div class="weight-panel" id="weightPanel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;color:#e2e8f0">⚙️ スコア重みづけ</div>
+        <button onclick="toggleWeightPanel()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:16px">✕</button>
+      </div>
+      <div class="weight-row">
+        <label>立地スコア <span id="wLocVal">30</span>%</label>
+        <input type="range" id="wLoc" min="0" max="100" value="30" style="width:100%;accent-color:#38bdf8" oninput="updateWeights()">
+      </div>
+      <div class="weight-row">
+        <label>収益スコア <span id="wRevVal">40</span>%</label>
+        <input type="range" id="wRev" min="0" max="100" value="40" style="width:100%;accent-color:#4ade80" oninput="updateWeights()">
+      </div>
+      <div class="weight-row">
+        <label>需要スコア <span id="wDemVal">15</span>%</label>
+        <input type="range" id="wDem" min="0" max="100" value="15" style="width:100%;accent-color:#fbbf24" oninput="updateWeights()">
+      </div>
+      <div class="weight-row">
+        <label>リスクスコア <span id="wRiskVal">15</span>%</label>
+        <input type="range" id="wRisk" min="0" max="100" value="15" style="width:100%;accent-color:#f87171" oninput="updateWeights()">
+      </div>
+      <div class="weight-total" id="weightTotal" style="color:#4ade80">合計: 100%</div>
+      <div class="preset-btns">
+        <button class="preset-btn" onclick="applyPreset('balance')">⚖️ バランス型</button>
+        <button class="preset-btn" onclick="applyPreset('revenue')">💰 収益重視</button>
+        <button class="preset-btn" onclick="applyPreset('risk')">🛡️ リスク重視</button>
+        <button class="preset-btn" onclick="applyPreset('demand')">🏭 需要重視</button>
       </div>
     </div>
 
@@ -1130,133 +1194,248 @@ function selectSite(id) {
   showDetail(site);
 }
 
+// ===== スコア計算 =====
+let WEIGHTS = { location: 30, revenue: 40, demand: 15, risk: 15 };
+let _currentSite = null;
+let _currentHazard = null;
+
+const PRESETS = {
+  balance:  { location: 25, revenue: 35, demand: 20, risk: 20 },
+  revenue:  { location: 20, revenue: 50, demand: 15, risk: 15 },
+  risk:     { location: 20, revenue: 30, demand: 20, risk: 30 },
+  demand:   { location: 20, revenue: 30, demand: 35, risk: 15 },
+};
+
+function calcCategoryScores(site, hazard) {
+  // 立地スコア
+  const gridS  = Math.max(0, 100 - (site.substationDist || 0) / 50);
+  const areaS  = Math.min(100, (site.area || 0) / 100);
+  const locationScore = Math.round(gridS * 0.6 + areaS * 0.4);
+
+  // 収益スコア
+  const jepxS    = site.jepx?.jepx_score ?? 50;
+  const ctrlS    = site.curtailment?.curtailment_score ?? 10;
+  const fitS     = site.fitSolar?.fit_score ?? 30;
+  const outageS  = site.outage?.outage_score ?? 30;
+  const revenueScore = Math.round(jepxS * 0.35 + ctrlS * 0.25 + fitS * 0.20 + outageS * 0.20);
+
+  // 需要スコア
+  const solarS = site.solar?.solar_score ?? 50;
+  const evS    = site.ev?.ev_score ?? 20;
+  const demandScore = Math.round(solarS * 0.4 + evS * 0.6);
+
+  // 規制・リスクスコア
+  const farmS  = !site.farmClass ? 95 : site.farmClass === 'class3-farm' ? 70 : site.farmClass === 'class2-farm' ? 45 : 10;
+  const floodS = site.flood === 'none' ? 100 : site.flood === 'low' ? 70 : 30;
+  const hazardS = hazard?.score ?? 65;
+  const riskScore = Math.round(farmS * 0.35 + floodS * 0.35 + hazardS * 0.30);
+
+  return { locationScore, revenueScore, demandScore, riskScore };
+}
+
+function calcOverallScore(scores) {
+  const w = WEIGHTS;
+  const total = w.location + w.revenue + w.demand + w.risk;
+  return Math.round(
+    (scores.locationScore * w.location + scores.revenueScore * w.revenue +
+     scores.demandScore * w.demand + scores.riskScore * w.risk) / total
+  );
+}
+
+function scoreColor(s) { return s >= 80 ? "#4ade80" : s >= 50 ? "#fbbf24" : "#f87171"; }
+function scoreLabel(s) { return s >= 80 ? "優良" : s >= 50 ? "検討可" : "要確認"; }
+
+function catScoreCard(label, s) {
+  return `<div class="cat-score-card">
+    <div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:4px">${label}</div>
+      <div style="font-size:11px;color:${scoreColor(s)}">${scoreLabel(s)}</div>
+    </div>
+    <div style="text-align:right">
+      <div class="cat-score-num" style="color:${scoreColor(s)}">${s}</div>
+      <div style="font-size:11px;color:#475569">/ 100</div>
+    </div>
+  </div>`;
+}
+
+function updateScoreDisplay() {
+  if (!_currentSite) return;
+  const scores = calcCategoryScores(_currentSite, _currentHazard);
+  const overall = calcOverallScore(scores);
+  const el = id => document.getElementById(id);
+
+  const upd = (id, val) => { const e = el(id); if (e) { e.textContent = val; e.style.color = scoreColor(val); } };
+  const updCard = (id, val) => { const e = el(id); if (e) { e.textContent = val; e.parentElement.style.color = scoreColor(val); } };
+
+  upd("overallScore", overall);
+  upd("catLocScore", scores.locationScore);
+  upd("catRevScore", scores.revenueScore);
+  upd("catDemScore", scores.demandScore);
+  upd("catRiskScore", scores.riskScore);
+  ["catLocCard","catRevCard","catDemCard","catRiskCard"].forEach((id, i) => {
+    const vals = [scores.locationScore, scores.revenueScore, scores.demandScore, scores.riskScore];
+    const e = el(id); if (e) { e.textContent = vals[i]; e.style.color = scoreColor(vals[i]); }
+  });
+}
+
+// 重みづけ
+function toggleWeightPanel() {
+  document.getElementById("weightPanel").classList.toggle("open");
+}
+function updateWeights() {
+  const vals = ["wLoc","wRev","wDem","wRisk"].map(id => parseInt(document.getElementById(id).value));
+  const total = vals.reduce((a,b) => a+b, 0);
+  ["wLocVal","wRevVal","wDemVal","wRiskVal"].forEach((id, i) => {
+    document.getElementById(id).textContent = vals[i];
+  });
+  const totEl = document.getElementById("weightTotal");
+  totEl.textContent = `合計: ${total}%`;
+  totEl.style.color = total === 100 ? "#4ade80" : "#f87171";
+  WEIGHTS = { location: vals[0], revenue: vals[1], demand: vals[2], risk: vals[3] };
+  updateScoreDisplay();
+}
+function applyPreset(key) {
+  const p = PRESETS[key];
+  document.getElementById("wLoc").value = p.location;
+  document.getElementById("wRev").value = p.revenue;
+  document.getElementById("wDem").value = p.demand;
+  document.getElementById("wRisk").value = p.risk;
+  updateWeights();
+}
+
+// タブ切り替え
+function switchTab(name) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.id === "tab-" + name));
+}
+
 function showDetail(site) {
-  const panel = document.getElementById("detailPanel");
-  panel.classList.add("open");
+  _currentSite = site;
+  _currentHazard = null;
+  document.getElementById("detailPanel").classList.add("open");
 
-  const scoreColor = site.score >= 80 ? "#4ade80" : site.score >= 50 ? "#fbbf24" : "#f87171";
-  const scoreLabel = site.score >= 80 ? "優良" : site.score >= 50 ? "検討可" : "要注意";
-
-  document.getElementById("detailHeader").innerHTML = `
-    <button class="detail-close" onclick="closeDetail()">✕</button>
-    <div class="score-label">総合スコア</div>
-    <div class="score-big" style="color:${scoreColor}">${site.score}<span style="font-size:20px;color:#64748b">/100</span></div>
-    <div style="color:${scoreColor};font-size:13px;font-weight:600;margin-top:2px">${scoreLabel}</div>
-    <div class="site-name">${site.name}</div>
-    <div class="site-addr">📍 ${site.address}</div>
-  `;
+  const scores = calcCategoryScores(site, null);
+  const overall = calcOverallScore(scores);
+  const sc = scoreColor(overall);
+  const sl = scoreLabel(overall);
 
   const farmStatus = site.farmClass === "class1-farm" ? ["ng","第1種農地（転用原則不可）"] :
                      site.farmClass === "class2-farm" ? ["warn","第2種農地（転用要協議）"] :
                      site.farmClass === "class3-farm" ? ["warn","第3種農地（転用可）"] :
                      ["ok","農地なし（転用不要）"];
   const floodStatus = site.flood === "none" ? ["ok","なし"] :
-                      site.flood === "low"  ? ["warn",`あり（${site.floodLabel}）`] :
+                      site.flood === "low" ? ["warn",`あり（${site.floodLabel}）`] :
                       ["ng", site.floodLabel];
 
-  document.getElementById("detailBody").innerHTML = `
-    <div class="section-title">基本情報</div>
-    <div class="detail-row"><span class="key">面積</span><span class="val">${site.area.toLocaleString()} ㎡</span></div>
-    <div class="detail-row"><span class="key">地価（概算）</span><span class="val">${site.landprice.toLocaleString()} 円/㎡</span></div>
-    <div class="detail-row"><span class="key">傾斜</span><span class="val">${site.slope}°</span></div>
-    <div class="detail-row"><span class="key">接道幅員</span><span class="val">${site.roadWidth}m</span></div>
-
-    <div class="section-title" style="margin-top:16px">系統連系</div>
-    <div class="detail-row"><span class="key">最寄り変電所距離</span><span class="val ${site.substationDist < 1000 ? 'ok' : site.substationDist < 2000 ? 'warn' : 'ng'}">${site.substationDist}m</span></div>
-    <div class="detail-row"><span class="key">連系電圧（推定）</span><span class="val">6.6kV（高圧）</span></div>
-    <div class="detail-row"><span class="key">接続費用（概算）</span><span class="val">${site.substationDist < 1000 ? '低〜中' : site.substationDist < 2500 ? '中' : '高'}</span></div>
-
-    <div class="section-title" style="margin-top:16px">法規制・リスク</div>
-    <div class="detail-row"><span class="key">農地規制</span><span class="val ${farmStatus[0]}">${farmStatus[1]}</span></div>
-    <div class="detail-row"><span class="key">用途地域</span><span class="val">${site.landuseLabel}</span></div>
-    <div class="detail-row"><span class="key">洪水リスク</span><span class="val ${floodStatus[0]}">${floodStatus[1]}</span></div>
-    <div class="detail-row"><span class="key">土壌・地盤</span><span class="val">${site.soilRisk}</span></div>
-
-    <div class="section-title" style="margin-top:16px">スコア内訳</div>
-    <div class="progress-bar-wrap">
-      ${scoreBar("系統連系適合性", Math.max(0, 100 - site.substationDist / 50), "fill-blue")}
-      ${scoreBar("法規制クリア度", farmStatus[0]==="ok" ? 95 : farmStatus[0]==="warn" ? 60 : 20, "fill-green")}
-      ${scoreBar("ハザード安全性", site.flood==="none" ? 100 : site.flood==="low" ? 70 : 30, "fill-yellow")}
-      ${scoreBar("立地条件", Math.min(100, site.area/200), "fill-blue")}
-      ${site.jepx ? scoreBar(`JEPX収益性（${site.jepx.area}エリア）`, site.jepx.jepx_score, "fill-green") : ""}
-      ${site.solar ? scoreBar(`太陽光ポテンシャル（${site.solar.ghi}kWh/m²/日）`, site.solar.solar_score, "fill-yellow") : ""}
-      ${site.curtailment ? scoreBar(`出力制御ポテンシャル（${site.curtailment.area}エリア）`, site.curtailment.curtailment_score, "fill-green") : ""}
-      ${site.fitSolar ? scoreBar(`FIT太陽光集積度（${site.fitSolar.area}エリア）`, site.fitSolar.fit_score, "fill-blue") : ""}
-      ${site.outage ? scoreBar(`停電バックアップ価値（${site.outage.area}エリア）`, site.outage.outage_score, "fill-red") : ""}
-      ${site.ev ? scoreBar(`EV・V2G需要（${site.ev.prefecture}）`, site.ev.ev_score, "fill-blue") : ""}
+  // ヘッダー
+  document.getElementById("detailHeader").innerHTML = `
+    <button class="detail-close" onclick="closeDetail()">✕</button>
+    <div class="score-label">総合スコア（重みづけ反映）</div>
+    <div class="score-big" id="overallScore" style="color:${sc}">${overall}<span style="font-size:18px;color:#64748b">/100</span></div>
+    <div style="color:${sc};font-size:12px;font-weight:600;margin-top:2px">${sl}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:10px">
+      ${[["立地","catLocScore",scores.locationScore,"#38bdf8"],["収益","catRevScore",scores.revenueScore,"#4ade80"],
+         ["需要","catDemScore",scores.demandScore,"#fbbf24"],["リスク","catRiskScore",scores.riskScore,"#f87171"]].map(([l,id,v,c])=>`
+        <div style="background:#0f172a;border-radius:6px;padding:6px;text-align:center">
+          <div style="font-size:9px;color:#64748b">${l}</div>
+          <div id="${id}" style="font-size:16px;font-weight:700;color:${scoreColor(v)}">${v}</div>
+        </div>`).join("")}
     </div>
-    ${site.jepx ? `
-    <div class="section-title" style="margin-top:16px">JEPX卸価格（${site.jepx.data_year}年）</div>
-    <div class="detail-row"><span class="key">エリア</span><span class="val">${site.jepx.area}</span></div>
-    <div class="detail-row"><span class="key">年間平均価格</span><span class="val">${site.jepx.avg_price} 円/kWh</span></div>
-    <div class="detail-row"><span class="key">ピーク平均</span><span class="val">${site.jepx.peak_avg} 円/kWh</span></div>
-    <div class="detail-row"><span class="key">オフピーク平均</span><span class="val">${site.jepx.offpeak_avg} 円/kWh</span></div>
-    <div class="detail-row"><span class="key">${tip("ピーク差（スプレッド）","JEPXスプレッド")}</span><span class="val ${site.jepx.spread > 5 ? 'ok' : site.jepx.spread > 2 ? 'warn' : ''}">${site.jepx.spread} 円/kWh</span></div>
-    <div class="detail-row"><span class="key">${tip("収益性スコア","JEPX収益性スコア")}</span><span class="val ok">${site.jepx.jepx_score} / 100</span></div>
-    ` : ""}
-    <div class="section-title" style="margin-top:16px">周辺需要家・防災施設（半径5km）</div>
-    <div id="demandFacilities" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
+    <div class="site-name" style="margin-top:10px">${site.name}</div>
+    <div class="site-addr">📍 ${site.address}</div>
+    <button class="action-btn btn-primary" style="margin-top:10px" onclick="openExportModal(${site.id})">📤 案件化する</button>
+  `;
 
-    <div class="section-title" style="margin-top:16px">地震・地盤リスク（J-SHIS）</div>
-    <div id="earthquakeHazard" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
+  // ボディ：タブ構成
+  document.getElementById("detailBody").innerHTML = `
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="location" onclick="switchTab('location')">📍 概要・立地</button>
+      <button class="tab-btn" data-tab="revenue" onclick="switchTab('revenue')">💰 収益</button>
+      <button class="tab-btn" data-tab="demand" onclick="switchTab('demand')">🏭 需要</button>
+      <button class="tab-btn" data-tab="risk" onclick="switchTab('risk')">⚖️ 規制・リスク</button>
+    </div>
 
-    ${site.curtailment ? `
-    <div class="section-title" style="margin-top:16px">再エネ出力制御（BESS需要）</div>
-    <div class="detail-row"><span class="key">エリア</span><span class="val">${site.curtailment.area}</span></div>
-    <div class="detail-row"><span class="key">${tip("出力制御率（2023年度実績）","出力制御率")}</span><span class="val ${site.curtailment.rate_2023 > 3 ? 'ok' : site.curtailment.rate_2023 > 1 ? 'warn' : ''}">${site.curtailment.rate_2023}%</span></div>
-    <div class="detail-row"><span class="key">出力制御率（2024年度見通し）</span><span class="val">${site.curtailment.rate_2024}%</span></div>
-    <div class="detail-row"><span class="key">${tip("BESSニーズスコア","BESSニーズスコア")}</span><span class="val ok">${site.curtailment.curtailment_score} / 100</span></div>
-    <div style="font-size:10px;color:#475569;padding:4px 0 8px">出力制御率が高いほど、BESSによる蓄電・再放電の経済価値が高い</div>
-    ` : ""}
+    <!-- 概要・立地タブ -->
+    <div id="tab-location" class="tab-content active">
+      ${catScoreCard("立地スコア", scores.locationScore)}
+      <div class="section-title">基本情報</div>
+      <div class="detail-row"><span class="key">面積</span><span class="val">${site.area.toLocaleString()} ㎡</span></div>
+      <div class="detail-row"><span class="key">地価（概算）</span><span class="val">${(site.landprice||0).toLocaleString()} 円/㎡</span></div>
+      <div class="detail-row"><span class="key">傾斜</span><span class="val">${site.slope}°</span></div>
+      <div class="detail-row"><span class="key">接道幅員</span><span class="val">${site.roadWidth}m</span></div>
+      <div class="section-title" style="margin-top:14px">系統連系</div>
+      <div class="detail-row"><span class="key">最寄り変電所距離</span><span class="val ${site.substationDist < 1000 ? 'ok' : site.substationDist < 2000 ? 'warn' : 'ng'}">${site.substationDist}m</span></div>
+      <div class="detail-row"><span class="key">連系電圧（推定）</span><span class="val">6.6kV（高圧）</span></div>
+      <div class="detail-row"><span class="key">接続費用（概算）</span><span class="val">${site.substationDist < 1000 ? '低〜中' : site.substationDist < 2500 ? '中' : '高'}</span></div>
+      <div class="section-title" style="margin-top:14px">スコア内訳（立地）</div>
+      <div class="progress-bar-wrap">
+        ${scoreBar("系統連系適合性", Math.max(0, 100 - site.substationDist/50), "fill-blue")}
+        ${scoreBar("立地条件（面積）", Math.min(100, site.area/200), "fill-blue")}
+      </div>
+    </div>
 
-    ${site.fitSolar ? `
-    <div class="section-title" style="margin-top:16px">FIT太陽光発電 集積度</div>
-    <div class="detail-row"><span class="key">エリア</span><span class="val">${site.fitSolar.area}</span></div>
-    <div class="detail-row"><span class="key">FIT導入量（概算）</span><span class="val">${site.fitSolar.capacity_mw.toLocaleString()} MW</span></div>
-    <div class="detail-row"><span class="key">全国シェア</span><span class="val">${site.fitSolar.share_pct}%</span></div>
-    <div class="detail-row"><span class="key">集積スコア</span><span class="val ok">${site.fitSolar.fit_score} / 100</span></div>
-    <div style="font-size:10px;color:#475569;padding:4px 0 8px">FIT導入量が多いエリアほど将来の出力制御・BESS需要が高まる</div>
-    ` : ""}
+    <!-- 収益タブ -->
+    <div id="tab-revenue" class="tab-content">
+      ${catScoreCard("収益スコア", scores.revenueScore)}
+      ${site.jepx ? `
+      <div class="section-title">⚡ JEPX卸価格（${site.jepx.data_year}年）</div>
+      <div class="detail-row"><span class="key">エリア</span><span class="val">${site.jepx.area}</span></div>
+      <div class="detail-row"><span class="key">年間平均価格</span><span class="val">${site.jepx.avg_price} 円/kWh</span></div>
+      <div class="detail-row"><span class="key">${tip("ピーク差（スプレッド）","JEPXスプレッド")}</span><span class="val ${site.jepx.spread > 5 ? 'ok' : 'warn'}">${site.jepx.spread} 円/kWh</span></div>
+      <div class="detail-row"><span class="key">収益性スコア</span><span class="val ok">${site.jepx.jepx_score} / 100</span></div>` : ""}
+      ${site.curtailment ? `
+      <div class="section-title" style="margin-top:14px">🔌 再エネ出力制御</div>
+      <div class="detail-row"><span class="key">${tip("出力制御率（2023年度）","出力制御率")}</span><span class="val ${site.curtailment.rate_2023 > 3 ? 'ok' : 'warn'}">${site.curtailment.rate_2023}%</span></div>
+      <div class="detail-row"><span class="key">${tip("BESSニーズスコア","BESSニーズスコア")}</span><span class="val ok">${site.curtailment.curtailment_score} / 100</span></div>` : ""}
+      ${site.fitSolar ? `
+      <div class="section-title" style="margin-top:14px">☀️ FIT太陽光集積度</div>
+      <div class="detail-row"><span class="key">FIT導入量（概算）</span><span class="val">${site.fitSolar.capacity_mw.toLocaleString()} MW</span></div>
+      <div class="detail-row"><span class="key">集積スコア</span><span class="val ok">${site.fitSolar.fit_score} / 100</span></div>` : ""}
+      ${site.outage ? `
+      <div class="section-title" style="margin-top:14px">🔋 停電バックアップ価値</div>
+      <div class="detail-row"><span class="key">${tip("年間停電時間（SAIDI）","SAIDI")}</span><span class="val ${site.outage.saidi_min > 15 ? 'ok' : 'warn'}">${site.outage.saidi_min} 分/年</span></div>
+      <div class="detail-row"><span class="key">バックアップスコア</span><span class="val ok">${site.outage.outage_score} / 100</span></div>` : ""}
+      <div class="section-title" style="margin-top:14px">💰 収益シミュレーター</div>
+      ${renderSimulator(site)}
+    </div>
 
-    ${site.outage ? `
-    <div class="section-title" style="margin-top:16px">停電リスク・バックアップ価値</div>
-    <div class="detail-row"><span class="key">エリア</span><span class="val">${site.outage.area}</span></div>
-    <div class="detail-row"><span class="key">${tip("年間停電時間（SAIDI）","SAIDI")}</span><span class="val ${site.outage.saidi_min > 15 ? 'ok' : site.outage.saidi_min > 8 ? 'warn' : ''}">${site.outage.saidi_min} 分/年</span></div>
-    <div class="detail-row"><span class="key">主な原因</span><span class="val" style="font-size:11px">${site.outage.main_cause}</span></div>
-    <div class="detail-row"><span class="key">バックアップ価値スコア</span><span class="val ok">${site.outage.outage_score} / 100</span></div>
-    ` : ""}
+    <!-- 需要タブ -->
+    <div id="tab-demand" class="tab-content">
+      ${catScoreCard("需要スコア", scores.demandScore)}
+      <div class="section-title">🏭 周辺需要家・防災施設（半径5km）</div>
+      <div id="demandFacilities" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
+      ${site.ev ? `
+      <div class="section-title" style="margin-top:14px">🚗 EV普及率・V2G需要</div>
+      <div class="detail-row"><span class="key">${tip("EV普及率","EV普及率")}</span><span class="val">${site.ev.ev_rate_pct}%</span></div>
+      <div class="detail-row"><span class="key">EV登録台数</span><span class="val">${site.ev.ev_count.toLocaleString()} 台</span></div>
+      <div class="detail-row"><span class="key">V2G需要スコア</span><span class="val ok">${site.ev.ev_score} / 100</span></div>` : ""}
+      ${site.solar ? `
+      <div class="section-title" style="margin-top:14px">🌞 太陽光ポテンシャル</div>
+      <div class="detail-row"><span class="key">${tip("年間平均日射量","年間日射量")}</span><span class="val">${site.solar.ghi} kWh/m²/日</span></div>
+      <div class="detail-row"><span class="key">太陽光スコア</span><span class="val ok">${site.solar.solar_score} / 100</span></div>` : ""}
+    </div>
 
-    ${site.ev ? `
-    <div class="section-title" style="margin-top:16px">EV普及率・V2G需要</div>
-    <div class="detail-row"><span class="key">都道府県</span><span class="val">${site.ev.prefecture}</span></div>
-    <div class="detail-row"><span class="key">${tip("EV普及率","EV普及率")}</span><span class="val">${site.ev.ev_rate_pct}%</span></div>
-    <div class="detail-row"><span class="key">EV登録台数</span><span class="val">${site.ev.ev_count.toLocaleString()} 台</span></div>
-    <div class="detail-row"><span class="key">V2G需要スコア</span><span class="val ok">${site.ev.ev_score} / 100</span></div>
-    ` : ""}
-
-    ${site.solar ? `
-    <div class="section-title" style="margin-top:16px">太陽光ポテンシャル</div>
-    <div class="detail-row"><span class="key">都道府県</span><span class="val">${site.solar.prefecture}</span></div>
-    <div class="detail-row"><span class="key">${tip("年間平均日射量","年間日射量")}</span><span class="val">${site.solar.ghi} kWh/m²/日</span></div>
-    <div class="detail-row"><span class="key">太陽光スコア</span><span class="val ok">${site.solar.solar_score} / 100</span></div>
-    <div class="detail-row"><span class="key">出典</span><span class="val" style="font-size:11px">${site.solar.data_source}</span></div>
-    ` : ""}
-
-    <div class="section-title" style="margin-top:16px">💰 収益シミュレーター</div>
-    ${renderSimulator(site)}
-
-    <button class="action-btn btn-primary" style="margin-top:16px" onclick="openExportModal(${site.id})">📤 この候補地を案件化する</button>
-
-    <div class="section-title" style="margin-top:8px">申請フロー自動判定</div>
-    ${renderPermitFlow(site)}
-    <div style="padding:0 0 16px">
-      <button class="action-btn btn-secondary" onclick="alert('詳細レポートをPDF出力します（本番版で実装）')">📄 レポート出力</button>
+    <!-- 規制・リスクタブ -->
+    <div id="tab-risk" class="tab-content">
+      ${catScoreCard("規制・リスクスコア", scores.riskScore)}
+      <div class="section-title">⚖️ 法規制</div>
+      <div class="detail-row"><span class="key">農地規制</span><span class="val ${farmStatus[0]}">${farmStatus[1]}</span></div>
+      <div class="detail-row"><span class="key">用途地域</span><span class="val">${site.landuseLabel}</span></div>
+      <div class="detail-row"><span class="key">洪水リスク</span><span class="val ${floodStatus[0]}">${floodStatus[1]}</span></div>
+      <div class="detail-row"><span class="key">土壌・地盤</span><span class="val">${site.soilRisk}</span></div>
+      <div class="section-title" style="margin-top:14px">🌏 地震・地盤リスク（J-SHIS）</div>
+      <div id="earthquakeHazard" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
+      <div class="section-title" style="margin-top:14px">📋 申請フロー自動判定</div>
+      ${renderPermitFlow(site)}
+      <div style="padding:0 0 12px">
+        <button class="action-btn btn-secondary" onclick="alert('詳細レポートをPDF出力します（本番版で実装）')">📄 レポート出力</button>
+      </div>
     </div>
   `;
-  // シミュレーターの初期計算 + 周辺施設 + 地震ハザード取得
+
   setTimeout(() => calcSim(site.id), 30);
-  loadEarthquakeHazard(site);
   loadDemandFacilities(site.lat, site.lng, "demandFacilities");
+  loadEarthquakeHazard(site);
 }
 
 // ===== 申請フロー生成 =====
@@ -1937,6 +2116,9 @@ async function loadEarthquakeHazard(site) {
       <div class="detail-row"><span class="key">地盤スコア</span><span class="val" style="color:${scoreColor}">${d.score} / 100</span></div>
       <div style="font-size:10px;color:#475569;padding:4px 0 8px">出典: ${d.data_source}</div>
     `;
+    // 地震データが揃ったらスコアを更新
+    _currentHazard = d;
+    updateScoreDisplay();
   } catch (e) {
     if (el) el.innerHTML = `<div style="color:#475569;font-size:11px">地震ハザードデータを取得できませんでした</div>`;
   }
