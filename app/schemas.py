@@ -15,6 +15,15 @@ class JepxMetrics(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SolarOut(BaseModel):
+    prefecture: str
+    ghi: float
+    solar_score: int
+    data_source: str
+
+    model_config = {"from_attributes": True}
+
+
 class SiteOut(BaseModel):
     id: int
     name: str
@@ -35,5 +44,6 @@ class SiteOut(BaseModel):
     lat: float
     lng: float
     jepx: Optional[JepxMetrics] = None
+    solar: Optional[SolarOut] = None
 
     model_config = {"from_attributes": True}

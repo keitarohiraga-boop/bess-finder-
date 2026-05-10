@@ -25,6 +25,15 @@ class Site(Base):
     lng = Column(Float)
 
 
+class SolarPotential(Base):
+    __tablename__ = "solar_potential"
+
+    prefecture = Column(String, primary_key=True)
+    ghi = Column(Float)          # 年間平均日射量（kWh/m²/day）
+    solar_score = Column(Integer)  # BESSポテンシャルスコア（0〜100）
+    data_source = Column(String)   # データ出典
+
+
 class Substation(Base):
     __tablename__ = "substations"
 
