@@ -387,6 +387,43 @@
     .sim-bar-item .bar-fill { height: 8px; border-radius: 4px; transition: width 0.3s; }
     .sim-bar-item .bar-val { width: 70px; text-align: right; color: #e2e8f0; flex-shrink: 0; }
     .sim-warning { font-size: 10px; color: #475569; border-top: 1px solid #1e293b; padding-top: 8px; margin-top: 8px; line-height: 1.6; }
+
+    /* ===== ツールチップ ===== */
+    .tip-wrap { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+    .tip-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #334155; color: #94a3b8; font-size: 9px; font-weight: 700;
+      cursor: help; flex-shrink: 0; line-height: 1;
+    }
+    .tip-box {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: #cbd5e1;
+      line-height: 1.6;
+      width: 220px;
+      z-index: 300;
+      pointer-events: none;
+      white-space: normal;
+    }
+    .tip-box::after {
+      content: '';
+      position: absolute;
+      top: 100%; left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #475569;
+    }
+    .tip-wrap:hover .tip-box,
+    .tip-wrap.active .tip-box { display: block; }
   </style>
 </head>
 <body>
@@ -1074,8 +1111,8 @@ function showDetail(site) {
     <div class="detail-row"><span class="key">年間平均価格</span><span class="val">${site.jepx.avg_price} 円/kWh</span></div>
     <div class="detail-row"><span class="key">ピーク平均</span><span class="val">${site.jepx.peak_avg} 円/kWh</span></div>
     <div class="detail-row"><span class="key">オフピーク平均</span><span class="val">${site.jepx.offpeak_avg} 円/kWh</span></div>
-    <div class="detail-row"><span class="key">ピーク差</span><span class="val ${site.jepx.spread > 5 ? 'ok' : site.jepx.spread > 2 ? 'warn' : ''}">${site.jepx.spread} 円/kWh</span></div>
-    <div class="detail-row"><span class="key">収益性スコア</span><span class="val ok">${site.jepx.jepx_score} / 100</span></div>
+    <div class="detail-row"><span class="key">${tip("ピーク差（スプレッド）","JEPXスプレッド")}</span><span class="val ${site.jepx.spread > 5 ? 'ok' : site.jepx.spread > 2 ? 'warn' : ''}">${site.jepx.spread} 円/kWh</span></div>
+    <div class="detail-row"><span class="key">${tip("収益性スコア","JEPX収益性スコア")}</span><span class="val ok">${site.jepx.jepx_score} / 100</span></div>
     ` : ""}
     <div class="section-title" style="margin-top:16px">地震・地盤リスク（J-SHIS）</div>
     <div id="earthquakeHazard" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
@@ -1083,16 +1120,16 @@ function showDetail(site) {
     ${site.curtailment ? `
     <div class="section-title" style="margin-top:16px">再エネ出力制御（BESS需要）</div>
     <div class="detail-row"><span class="key">エリア</span><span class="val">${site.curtailment.area}</span></div>
-    <div class="detail-row"><span class="key">出力制御率（2023年度実績）</span><span class="val ${site.curtailment.rate_2023 > 3 ? 'ok' : site.curtailment.rate_2023 > 1 ? 'warn' : ''}">${site.curtailment.rate_2023}%</span></div>
+    <div class="detail-row"><span class="key">${tip("出力制御率（2023年度実績）","出力制御率")}</span><span class="val ${site.curtailment.rate_2023 > 3 ? 'ok' : site.curtailment.rate_2023 > 1 ? 'warn' : ''}">${site.curtailment.rate_2023}%</span></div>
     <div class="detail-row"><span class="key">出力制御率（2024年度見通し）</span><span class="val">${site.curtailment.rate_2024}%</span></div>
-    <div class="detail-row"><span class="key">BESSニーズスコア</span><span class="val ok">${site.curtailment.curtailment_score} / 100</span></div>
+    <div class="detail-row"><span class="key">${tip("BESSニーズスコア","BESSニーズスコア")}</span><span class="val ok">${site.curtailment.curtailment_score} / 100</span></div>
     <div style="font-size:10px;color:#475569;padding:4px 0 8px">出力制御率が高いほど、BESSによる蓄電・再放電の経済価値が高い</div>
     ` : ""}
 
     ${site.solar ? `
     <div class="section-title" style="margin-top:16px">太陽光ポテンシャル</div>
     <div class="detail-row"><span class="key">都道府県</span><span class="val">${site.solar.prefecture}</span></div>
-    <div class="detail-row"><span class="key">年間平均日射量</span><span class="val">${site.solar.ghi} kWh/m²/日</span></div>
+    <div class="detail-row"><span class="key">${tip("年間平均日射量","年間日射量")}</span><span class="val">${site.solar.ghi} kWh/m²/日</span></div>
     <div class="detail-row"><span class="key">太陽光スコア</span><span class="val ok">${site.solar.solar_score} / 100</span></div>
     <div class="detail-row"><span class="key">出典</span><span class="val" style="font-size:11px">${site.solar.data_source}</span></div>
     ` : ""}
@@ -1320,6 +1357,30 @@ document.getElementById("sortSelect").addEventListener("change", e => {
   renderAll();
 });
 
+// ===== ツールチップ ヘルパー =====
+const TIPS = {
+  "ARV":        "表層地盤増幅率。地震の揺れが地表でどれだけ増幅されるかを示す指標。1.0＝増幅なし、5.0＝5倍に増幅。値が低いほど地盤が強固で安全。",
+  "AVS30":      "地表から30mの深さまでの平均S波速度（横波の伝わる速さ）。地盤の硬さの指標。400m/s以上＝硬い地盤（良好）、150m/s未満＝軟弱地盤（要注意）。",
+  "微地形分類":  "地形の成り立ちによる分類。台地・山地は地盤が強く安全。沖積低地・埋立地は軟弱で液状化リスクが高い傾向がある。",
+  "JEPXスプレッド": "JEPXスポット市場でのピーク時間帯とオフピーク時間帯の電力価格差（円/kWh）。BESSはこの差を利用して安く充電し高く放電することで収益を得る。差が大きいほど収益性が高い。",
+  "JEPX収益性スコア": "JEPXの価格差（スプレッド）と価格変動率に基づくBESS収益ポテンシャルのスコア。100点満点で高いほど裁定取引による収益が期待できる。",
+  "容量市場":    "電力の安定供給のために発電・蓄電設備の確保を行う市場。設備を確保するだけで年間固定収入（円/kW/年）が得られる。BESSは1MW以上・3時間以上放電が参加要件。",
+  "需給調整市場": "電力の需給バランスを秒〜分単位で調整するための市場。BESSの高速な充放電特性が活かせる収益源。",
+  "出力制御率":  "再エネ発電設備が発電できるにもかかわらず電力会社に発電を止めさせられた割合。制御率が高いエリアほどBESSで電力を蓄えて有効活用できる価値が高い。",
+  "BESSニーズスコア": "出力制御率の高さに基づいて算出したBESSの社会的・経済的ニーズのスコア。九州・中国・四国エリアが高い。",
+  "太陽光スコア": "NEDO・気象庁のデータに基づく都道府県別の年間平均日射量から算出。日射量が多い地域ほど太陽光発電が盛んになり、BESSの需要が高まる。",
+  "年間日射量":  "1平方メートルあたり1日の平均太陽光エネルギー量（kWh/m²/日）。沖縄・九州・東海が高く、北陸・東北が低い傾向がある。",
+  "系統連系適合性": "最寄り変電所までの距離に基づくスコア。近いほど系統連系工事費が低く、接続審査も通りやすい傾向がある。",
+  "単純回収期間": "設備投資額（CAPEX）を年間純収益で割った期間。一般的にBESSは10〜15年が目安。補助金活用で短縮できる場合がある。",
+  "C-rate":     "蓄電池の充放電速度の指標。1Cは1時間で満充電・満放電、0.5C＝2時間、0.33C＝3時間。容量市場参加には0.33C以下（3時間以上）が必要。",
+};
+
+function tip(label, key) {
+  const text = TIPS[key] || TIPS[label];
+  if (!text) return label;
+  return `<span class="tip-wrap">${label}<span class="tip-icon" onclick="this.parentNode.classList.toggle('active')">?</span><span class="tip-box">${text}</span></span>`;
+}
+
 // ===== 地震ハザード取得（J-SHIS直接呼び出し） =====
 const TERRAIN_RISK = {
   "山地": 1, "丘陵": 1, "台地": 1, "段丘": 2,
@@ -1356,9 +1417,9 @@ async function loadEarthquakeHazard(site) {
 
     const scoreColor = d.score >= 75 ? "#4ade80" : d.score >= 50 ? "#fbbf24" : "#f87171";
     el.innerHTML = `
-      <div class="detail-row"><span class="key">微地形分類</span><span class="val">${d.terrain}</span></div>
-      <div class="detail-row"><span class="key">表層地盤増幅率（ARV）</span><span class="val ${d.arv <= 2 ? 'ok' : d.arv <= 4 ? 'warn' : 'ng'}">${d.arv?.toFixed(2) ?? "不明"}</span></div>
-      <div class="detail-row"><span class="key">S波速度（AVS30）</span><span class="val">${d.avs ? d.avs.toFixed(0) + " m/s" : "不明"}</span></div>
+      <div class="detail-row"><span class="key">${tip("微地形分類","微地形分類")}</span><span class="val">${d.terrain}</span></div>
+      <div class="detail-row"><span class="key">${tip("表層地盤増幅率（ARV）","ARV")}</span><span class="val ${d.arv <= 2 ? 'ok' : d.arv <= 4 ? 'warn' : 'ng'}">${d.arv?.toFixed(2) ?? "不明"}</span></div>
+      <div class="detail-row"><span class="key">${tip("S波速度（AVS30）","AVS30")}</span><span class="val">${d.avs ? d.avs.toFixed(0) + " m/s" : "不明"}</span></div>
       <div class="detail-row"><span class="key">地盤リスク判定</span><span class="val" style="color:${scoreColor}">${d.risk_label}</span></div>
       <div class="detail-row"><span class="key">地盤スコア</span><span class="val" style="color:${scoreColor}">${d.score} / 100</span></div>
       <div style="font-size:10px;color:#475569;padding:4px 0 8px">出典: ${d.data_source}</div>
