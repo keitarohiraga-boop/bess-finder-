@@ -2602,6 +2602,7 @@ function buildPDFHTML(d) {
   const sc = (v) => v>=80?'#16a34a':v>=50?'#ca8a04':'#dc2626';
   const irrColor = d.irr>=0.10?'#16a34a':d.irr>=0.07?'#ca8a04':'#dc2626';
   const today = new Date().toLocaleDateString('ja-JP');
+  const docId = `NB-BESS-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
 
   const monthBars = MONTH_LABELS.map((label,i) => {
     const h = Math.round(d.monthlyRevs[i]/d.maxMR*50);
