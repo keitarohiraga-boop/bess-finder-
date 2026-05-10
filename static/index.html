@@ -1318,6 +1318,24 @@ document.getElementById("sortSelect").addEventListener("change", e => {
 
 // ===== 収益シミュレーター =====
 
+// 容量市場 エリア別・年度別 約定価格（円/kW/年）
+// 出典: OCCTO メインオークション・追加オークション結果
+const CAPACITY_MARKET = {
+  2025: { 北海道: 5242, 東北: 4500, 東京: 5000, 中部: 3500, 北陸: 3200, 関西: 3109, 中国: 3500, 四国: 3800, 九州: 4800, label: "第2回実績（確定）" },
+  2026: { 北海道: 8749, 東北: 8749, 東京: 8749, 中部: 8749, 北陸: 8213, 関西: 8213, 中国: 8213, 四国: 8213, 九州: 8591, label: "追加オークション実績（確定）" },
+  2027: { 北海道: 13287, 東北: 10500, 東京: 12000, 中部: 8200, 北陸: 7823, 関西: 8200, 中国: 9000, 四国: 9500, 九州: 11000, label: "第4回実績（確定）" },
+  2028: { 北海道: 14812, 東北: 12500, 東京: 13500, 中部: 10280, 北陸: 10500, 関西: 11000, 中国: 11500, 四国: 12000, 九州: 13000, label: "第5回実績（確定）" },
+  2029: { 北海道: 15112, 東北: 15111, 東京: 15112, 中部: 15111, 北陸: 15111, 関西: 15111, 中国: 15112, 四国: 15112, 九州: 15112, label: "第6回実績（確定）" },
+};
+
+const CAPACITY_YEARS = Object.keys(CAPACITY_MARKET).map(Number);
+
+function getCapacityPrice(area, year) {
+  const data = CAPACITY_MARKET[year];
+  if (!data) return { price: 10000, label: "推定値" };
+  return { price: data[area] ?? 10000, label: data.label };
+}
+
 function calcOptimalPreset(site) {
   // ① 土地面積から最大容量（1MWh/80㎡）
   const cap_from_area = site.area / 80;
@@ -1390,6 +1408,11 @@ function renderSimulator(site) {
       <input type="range" id="simUnit" min="3" max="10" step="0.5" value="${preset.unit_price}"
         style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
     </div>
+    <div class="sim-input-row">
+      <label>容量市場 供出年度 <span id="simYearLabel">${CAPACITY_YEARS[CAPACITY_YEARS.length-1]}年度</span></label>
+      <input type="range" id="simYear" min="${CAPACITY_YEARS[0]}" max="${CAPACITY_YEARS[CAPACITY_YEARS.length-1]}" step="1" value="${CAPACITY_YEARS[CAPACITY_YEARS.length-1]}"
+        style="width:100%;accent-color:#4ade80;cursor:pointer" oninput="calcSim(${site.id})">
+    </div>
     <div style="font-size:11px;color:#475569;margin-bottom:8px">
       JEPXスプレッド参照：${area}エリア ${spread} 円/kWh
     </div>
@@ -1404,6 +1427,7 @@ function resetPreset(siteId) {
   document.getElementById("simCap").value   = p.cap_mwh;
   document.getElementById("simPower").value = p.power_mw;
   document.getElementById("simUnit").value  = p.unit_price;
+  document.getElementById("simYear").value  = CAPACITY_YEARS[CAPACITY_YEARS.length - 1];
   calcSim(siteId);
 }
 
@@ -1413,39 +1437,62 @@ function calcSim(siteId) {
 
   const cap_mwh  = parseFloat(document.getElementById("simCap").value);
   const power_mw = parseFloat(document.getElementById("simPower").value);
-  const unit_man = parseFloat(document.getElementById("simUnit").value); // 万円/kWh
+  const unit_man = parseFloat(document.getElementById("simUnit").value);
+  const year     = parseInt(document.getElementById("simYear").value);
 
   document.getElementById("simCapLabel").textContent   = `${cap_mwh} MWh`;
   document.getElementById("simPowerLabel").textContent = `${power_mw} MW`;
   document.getElementById("simUnitLabel").textContent  = `${unit_man} 万円/kWh`;
+  document.getElementById("simYearLabel").textContent  = `${year}年度`;
 
   const cap_kwh  = cap_mwh * 1000;
   const power_kw = power_mw * 1000;
+  const duration_h = cap_mwh / power_mw;  // 放電継続時間（時間）
+
+  // ── 容量市場参加要件チェック ──
+  const capMktEligible = power_kw >= 1000 && duration_h >= 3;
+  const capWarnings = [];
+  if (power_kw < 1000) capWarnings.push(`出力${power_mw}MW → 1MW以上が必要`);
+  if (duration_h < 3)  capWarnings.push(`放電時間${duration_h.toFixed(1)}h → 3時間以上が必要`);
+
+  // ── 容量市場価格（エリア・年度別） ──
+  const area = site.jepx?.area ?? "東京";
+  const { price: capPrice, label: capLabel } = getCapacityPrice(area, year);
 
   // ── 収益計算 ──
-  const spread    = site.jepx?.spread ?? 5.0;
-  const cycles    = 300;   // 年間充放電サイクル
-  const eff       = 0.88;  // ラウンドトリップ効率
+  const spread  = site.jepx?.spread ?? 5.0;
+  const cycles  = 300;
+  const eff     = 0.88;
 
-  const rev_jepx  = spread * cap_kwh * cycles * eff;              // JEPX裁定
-  const rev_cap   = power_kw * 10000;                              // 容量市場（約10,000円/kW/年）
-  const rev_reg   = power_kw * 2000;                               // 需給調整市場（概算）
+  const rev_jepx = spread * cap_kwh * cycles * eff;
+  const rev_cap  = capMktEligible ? power_kw * capPrice : 0;
+  const rev_reg  = power_kw * 2000;
   const rev_total = rev_jepx + rev_cap + rev_reg;
 
   // ── コスト計算 ──
-  const capex     = unit_man * 10000 * cap_kwh;                    // 設備CAPEX（円）
-  const om_cost   = capex * 0.02;                                   // O&M（CAPEX×2%/年）
-  const net_rev   = rev_total - om_cost;
-  const payback   = net_rev > 0 ? capex / net_rev : null;
+  const capex   = unit_man * 10000 * cap_kwh;
+  const om_cost = capex * 0.02;
+  const net_rev = rev_total - om_cost;
+  const payback = net_rev > 0 ? capex / net_rev : null;
 
   const fmt = n => n >= 1e8
     ? `${(n/1e8).toFixed(1)}億円`
     : `${(n/1e6).toFixed(1)}百万円`;
 
-  const maxRev = rev_total;
+  const maxRev = Math.max(rev_total, 1);
   const barPct = v => Math.round(v / maxRev * 100);
 
   document.getElementById(`simResults${siteId}`).innerHTML = `
+    ${capWarnings.length > 0 ? `
+    <div style="background:#450a0a;border:1px solid #f87171;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#fca5a5">
+      ⚠️ 容量市場参加要件未達：${capWarnings.join(" / ")}<br>
+      <span style="color:#94a3b8">容量市場収益は0円で計算しています</span>
+    </div>` : `
+    <div style="background:#14532d;border:1px solid #4ade80;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#86efac">
+      ✅ 容量市場参加要件クリア（${power_mw}MW・${duration_h.toFixed(1)}h放電）<br>
+      ${area}エリア ${year}年度：${capPrice.toLocaleString()}円/kW/年（${capLabel}）
+    </div>`}
+
     <div class="sim-result-grid">
       <div class="sim-result-card">
         <div class="label">年間総収益（概算）</div>
@@ -1481,7 +1528,7 @@ function calcSim(siteId) {
       <div class="sim-bar-item">
         <div class="bar-label">容量市場</div>
         <div class="bar-track"><div class="bar-fill" style="background:#4ade80;width:${barPct(rev_cap)}%"></div></div>
-        <div class="bar-val">${fmt(rev_cap)}</div>
+        <div class="bar-val">${rev_cap > 0 ? fmt(rev_cap) : "対象外"}</div>
       </div>
       <div class="sim-bar-item">
         <div class="bar-label">需給調整市場</div>
@@ -1490,8 +1537,8 @@ function calcSim(siteId) {
       </div>
     </div>
     <div class="sim-warning">
-      ※ 概算値です。JEPX裁定は${site.jepx?.area ?? "各"}エリアの${site.jepx?.data_year ?? "直近"}年実績スプレッド（${spread}円/kWh）をベースに算出。
-      容量市場は第2回オークション約定単価（10,000円/kW/年）を参考値として使用。
+      ※ 概算値です。JEPX裁定は${area}エリアの実績スプレッド（${spread}円/kWh）を使用。
+      容量市場は${year}年度 ${area}エリア約定価格（${capPrice.toLocaleString()}円/kW/年）を使用。
       実際の収益は市況・系統制約・税制・補助金により大きく変動します。
     </div>
   `;
