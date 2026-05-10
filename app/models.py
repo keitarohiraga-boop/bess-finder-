@@ -25,6 +25,17 @@ class Site(Base):
     lng = Column(Float)
 
 
+class Substation(Base):
+    __tablename__ = "substations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    prefecture = Column(String)
+    lat = Column(Float, nullable=False)
+    lng = Column(Float, nullable=False)
+    voltage_class = Column(String, nullable=True)  # 高圧 / 特別高圧 / 不明
+
+
 class JepxAreaMetrics(Base):
     __tablename__ = "jepx_area_metrics"
 
