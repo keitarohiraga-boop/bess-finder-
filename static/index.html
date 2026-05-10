@@ -1111,7 +1111,11 @@ async function renderAll() {
 
   // ソート
   visible.sort((a, b) => {
-    if (sortBy === "score") return b.score - a.score;
+    if (sortBy === "score") {
+      const wa = calcOverallScore(calcCategoryScores(a, null));
+      const wb = calcOverallScore(calcCategoryScores(b, null));
+      return wb - wa;
+    }
     if (sortBy === "area") return b.area - a.area;
     if (sortBy === "distance") return a.substationDist - b.substationDist;
     return 0;
@@ -1137,14 +1141,15 @@ function renderSiteList(sites) {
     return;
   }
   sites.forEach(s => {
-    const cls = s.score >= 80 ? "score-high" : s.score >= 50 ? "score-mid" : "score-low";
+    const ws = calcOverallScore(calcCategoryScores(s, null));
+    const cls = ws >= 80 ? "score-high" : ws >= 50 ? "score-mid" : "score-low";
     const chipFlood = s.flood === "none" ? "chip-ok" : s.flood === "low" ? "chip-warn" : "chip-ng";
     const chipFarm = s.farmClass === "class1-farm" ? "chip-ng" : s.farmClass ? "chip-warn" : "chip-ok";
     const div = document.createElement("div");
     div.className = "site-card" + (s.id === selectedSiteId ? " selected" : "");
     div.dataset.id = s.id;
     div.innerHTML = `
-      <div class="score-badge ${cls}">${s.score}</div>
+      <div class="score-badge ${cls}">${ws}</div>
       <div class="site-info">
         <div class="name">${s.name}</div>
         <div class="meta">
@@ -1293,6 +1298,7 @@ function updateWeights() {
   totEl.style.color = total === 100 ? "#4ade80" : "#f87171";
   WEIGHTS = { location: vals[0], revenue: vals[1], demand: vals[2], risk: vals[3] };
   updateScoreDisplay();
+  renderAll(); // 左パネルのスコア・順位も更新
 }
 function applyPreset(key) {
   const p = PRESETS[key];
