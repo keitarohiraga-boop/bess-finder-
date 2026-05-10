@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 
 from app.database import engine
 from app import models
@@ -26,7 +29,16 @@ app.include_router(substations.router, prefix="/api/v1")
 app.include_router(solar.router, prefix="/api/v1")
 app.include_router(curtailment.router, prefix="/api/v1")
 
+# フロントエンドの静的ファイルを配信
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
 
-@app.get("/")
-def root():
-    return {"message": "BESS Site Finder API", "docs": "/docs"}
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.get("/")
+    def serve_frontend():
+        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+else:
+    @app.get("/")
+    def root():
+        return {"message": "BESS Site Finder API", "docs": "/docs"}

@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>蓄電池施設 候補地探索システム</title>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+
+    header {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; }
+    header .subtitle { font-size: 12px; color: #94a3b8; }
+    header .badge {
+      margin-left: auto;
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+      color: #38bdf8;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ===== 左パネル ===== */
+    .sidebar {
+      width: 300px;
+      background: #1e293b;
+      border-right: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .sidebar-scroll { overflow-y: auto; flex: 1; padding: 16px; }
+    .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+    .sidebar-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+      margin-top: 18px;
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    /* フィルター */
+    .filter-group { margin-bottom: 14px; }
+    .filter-label {
+      font-size: 13px;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .filter-label .icon { font-size: 14px; }
+    .filter-label .tag {
+      margin-left: auto;
+      font-size: 10px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 1px 6px;
+      border-radius: 3px;
+      color: #64748b;
+    }
+
+    .toggle-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    .toggle-btn {
+      padding: 5px 12px;
+      font-size: 12px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .toggle-btn:hover { border-color: #38bdf8; color: #e2e8f0; }
+    .toggle-btn.active { background: #0ea5e9; border-color: #0ea5e9; color: #fff; }
+    .toggle-btn.reject { background: #ef4444; border-color: #ef4444; color: #fff; }
+
+    .range-wrap { display: flex; align-items: center; gap: 8px; }
+    input[type=range] {
+      flex: 1;
+      accent-color: #38bdf8;
+      cursor: pointer;
+    }
+    .range-val { font-size: 12px; color: #38bdf8; min-width: 48px; text-align: right; }
+
+    /* 結果一覧 */
+    .result-header {
+      padding: 12px 16px;
+      border-top: 1px solid #334155;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .result-count { font-size: 13px; color: #94a3b8; }
+    .result-count span { color: #38bdf8; font-weight: 700; font-size: 18px; margin-right: 4px; }
+    .sort-select {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      font-size: 11px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .site-list { overflow-y: auto; flex: 1; }
+    .site-list::-webkit-scrollbar { width: 4px; }
+    .site-list::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+    .site-card {
+      padding: 12px 16px;
+      border-bottom: 1px solid #1e293b;
+      cursor: pointer;
+      transition: background 0.1s;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .site-card:hover { background: #1e293b; }
+    .site-card.selected { background: #0c2240; border-left: 3px solid #38bdf8; }
+
+    .score-badge {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .score-high { background: #14532d; color: #4ade80; }
+    .score-mid  { background: #713f12; color: #fbbf24; }
+    .score-low  { background: #450a0a; color: #f87171; }
+
+    .site-info .name { font-size: 13px; font-weight: 600; color: #e2e8f0; margin-bottom: 3px; }
+    .site-info .meta { font-size: 11px; color: #64748b; display: flex; gap: 8px; flex-wrap: wrap; }
+    .site-info .tag-chip {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-top: 4px;
+      display: inline-block;
+    }
+    .chip-ok   { background: #14532d; color: #4ade80; }
+    .chip-warn { background: #713f12; color: #fbbf24; }
+    .chip-ng   { background: #450a0a; color: #f87171; }
+
+    /* ===== 地図エリア ===== */
+    #map { width: 100%; height: 100%; }
+
+    /* ===== 詳細パネル ===== */
+    .detail-panel {
+      width: 320px;
+      background: #1e293b;
+      border-left: 1px solid #334155;
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .detail-panel.open { display: flex; }
+    .detail-panel::-webkit-scrollbar { width: 4px; }
+    .detail-panel::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+    .detail-close {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #334155;
+      border: none;
+      color: #94a3b8;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .detail-header {
+      position: relative;
+      padding: 20px;
+      border-bottom: 1px solid #334155;
+    }
+    .detail-header .score-big {
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .detail-header .score-label { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+    .detail-header .site-name { font-size: 17px; font-weight: 700; color: #e2e8f0; margin-top: 10px; }
+    .detail-header .site-addr { font-size: 12px; color: #64748b; margin-top: 4px; }
+
+    .detail-body { padding: 16px 20px; }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid #1e293b;
+      font-size: 13px;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row .key { color: #94a3b8; }
+    .detail-row .val { color: #e2e8f0; font-weight: 500; }
+    .detail-row .val.ok   { color: #4ade80; }
+    .detail-row .val.warn { color: #fbbf24; }
+    .detail-row .val.ng   { color: #f87171; }
+
+    .progress-bar-wrap { margin-top: 20px; }
+    .progress-item { margin-bottom: 12px; }
+    .progress-label { font-size: 12px; color: #94a3b8; margin-bottom: 4px; display: flex; justify-content: space-between; }
+    .progress-track { height: 6px; background: #334155; border-radius: 3px; }
+    .progress-fill { height: 6px; border-radius: 3px; transition: width 0.3s; }
+    .fill-green  { background: #4ade80; }
+    .fill-yellow { background: #fbbf24; }
+    .fill-red    { background: #f87171; }
+    .fill-blue   { background: #38bdf8; }
+
+    .action-btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      margin-bottom: 8px;
+      transition: opacity 0.15s;
+    }
+    .action-btn:hover { opacity: 0.85; }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-secondary { background: #1e293b; border: 1px solid #334155; color: #94a3b8; }
+
+    /* 凡例 */
+    .legend {
+      position: absolute;
+      bottom: 32px;
+      left: 316px;
+      background: rgba(15,23,42,0.92);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+    .legend-title { color: #64748b; font-size: 11px; margin-bottom: 8px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: #cbd5e1; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+    /* データソース注記 */
+    .datasource-note {
+      position: absolute;
+      bottom: 8px;
+      left: 316px;
+      font-size: 10px;
+      color: #475569;
+      z-index: 10;
+    }
+
+    /* ローディング */
+    /* ===== エクスポートモーダル ===== */
+    .export-modal-bg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .export-modal-bg.open { display: flex; }
+    .export-modal {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      width: 520px;
+      max-width: 95vw;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    .export-modal h2 { font-size: 16px; color: #e2e8f0; margin-bottom: 4px; }
+    .export-modal .subtitle { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+    .export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .export-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      text-align: left;
+      width: 100%;
+    }
+    .export-btn:hover { border-color: #38bdf8; }
+    .export-btn .icon { font-size: 22px; flex-shrink: 0; }
+    .export-btn .label { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+    .export-btn .desc { font-size: 10px; color: #64748b; }
+    .export-preview {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 16px;
+    }
+    .export-preview strong { color: #94a3b8; }
+
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15,23,42,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      backdrop-filter: blur(2px);
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #334155;
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .api-notice {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+    .api-notice strong { color: #38bdf8; }
+
+    /* ===== 収益シミュレーター ===== */
+    .sim-input-row { margin-bottom: 10px; }
+    .sim-input-row label { font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .sim-input-row label span { color: #38bdf8; font-weight: 600; }
+    .sim-result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 12px 0; }
+    .sim-result-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .sim-result-card .label { font-size: 10px; color: #64748b; margin-bottom: 4px; }
+    .sim-result-card .value { font-size: 16px; font-weight: 700; color: #e2e8f0; }
+    .sim-result-card .sub { font-size: 10px; color: #475569; margin-top: 2px; }
+    .sim-bar-wrap { margin: 8px 0; }
+    .sim-bar-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; }
+    .sim-bar-item .bar-label { width: 100px; color: #94a3b8; flex-shrink: 0; }
+    .sim-bar-item .bar-track { flex: 1; height: 8px; background: #1e293b; border-radius: 4px; }
+    .sim-bar-item .bar-fill { height: 8px; border-radius: 4px; transition: width 0.3s; }
+    .sim-bar-item .bar-val { width: 70px; text-align: right; color: #e2e8f0; flex-shrink: 0; }
+    .sim-warning { font-size: 10px; color: #475569; border-top: 1px solid #1e293b; padding-top: 8px; margin-top: 8px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">⚡ BESS Site Finder</div>
+    <div class="subtitle">蓄電池施設 建設候補地探索システム</div>
+  </div>
+  <div class="badge">デモ版 / Mock Data</div>
+</header>
+
+<div class="main">
+
+  <!-- 左パネル：フィルター -->
+  <div class="sidebar">
+    <div class="sidebar-scroll">
+      <div class="api-notice">
+        <strong>※ デモ版</strong>：現在はサンプルデータで動作。<br>
+        WAGRI API・不動産情報ライブラリAPI取得後に実データへ切替。
+      </div>
+
+      <div class="section-title">🔍 条件フィルター</div>
+
+      <div class="filter-group">
+        <div class="filter-label"><span class="icon">🌾</span> 農地法・地目 <span class="tag">農地ナビ</span></div>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-filter="landuse" data-val="non-farm">農地以外</button>
+          <button class="toggle-btn active" data-filter="landuse" data-val="class2-farm">第2種農地</button>
+          <button class="toggle-btn active" data-filter="landuse" data-val="class3-farm">第3種農地</button>
+          <button class="toggle-btn" data-filter="landuse" data-val="class1-farm">第1種農地</button>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-label"><span class="icon">🏗️</span> 用途地域 <span class="tag">国土数値情報</span></div>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-filter="zone" data-val="industrial">工業・工業専用</button>
+          <button class="toggle-btn active" data-filter="zone" data-val="quasi-industrial">準工業</button>
+          <button class="toggle-btn active" data-filter="zone" data-val="unzoned">用途地域外</button>
+          <button class="toggle-btn" data-filter="zone" data-val="commercial">商業系</button>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-label"><span class="icon">🌊</span> 洪水リスク <span class="tag">ハザードマップ</span></div>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-filter="flood" data-val="none">リスクなし</button>
+          <button class="toggle-btn active" data-filter="flood" data-val="low">低（0.5m未満）</button>
+          <button class="toggle-btn" data-filter="flood" data-val="mid">中（0.5〜3m）</button>
+          <button class="toggle-btn reject" data-filter="flood" data-val="high">高（3m以上）除外</button>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-label"><span class="icon">⚡</span> 変電所からの距離 <span class="tag">系統情報</span></div>
+        <div class="range-wrap">
+          <input type="range" id="substationRange" min="500" max="5000" step="100" value="3000" />
+          <div class="range-val" id="substationVal">3000m以内</div>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-label"><span class="icon">📐</span> 最小面積</div>
+        <div class="range-wrap">
+          <input type="range" id="areaRange" min="500" max="10000" step="500" value="1000" />
+          <div class="range-val" id="areaVal">1,000㎡〜</div>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-label"><span class="icon">🏔️</span> 傾斜制限</div>
+        <div class="range-wrap">
+          <input type="range" id="slopeRange" min="1" max="15" step="1" value="5" />
+          <div class="range-val" id="slopeVal">5°以下</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 結果数 -->
+    <div class="result-header">
+      <div class="result-count"><span id="resultCount">0</span>件 の候補地</div>
+      <select class="sort-select" id="sortSelect">
+        <option value="score">スコア順</option>
+        <option value="area">面積順</option>
+        <option value="distance">変電所距離順</option>
+      </select>
+    </div>
+
+    <!-- サイト一覧 -->
+    <div class="site-list" id="siteList"></div>
+  </div>
+
+  <!-- 地図 -->
+  <div style="position:relative; flex:1; height:100%;">
+    <div id="map"></div>
+    <div class="legend">
+      <div class="legend-title">候補地スコア</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div>80〜100点（優良）</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div>50〜79点（検討可）</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>50点未満（要注意）</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#94a3b8; opacity:0.5"></div>フィルター除外</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>変電所</div>
+    </div>
+    <div class="datasource-note">地図：国土地理院 / データ：デモ用サンプル</div>
+    <!-- エクスポートモーダル -->
+    <div class="export-modal-bg" id="exportModalBg" onclick="if(event.target===this)closeExportModal()">
+      <div class="export-modal">
+        <h2>📤 案件化エクスポート</h2>
+        <div class="subtitle" id="exportSubtitle"></div>
+        <div class="export-preview" id="exportPreview"></div>
+        <div class="export-grid">
+          <button class="export-btn" onclick="doExport('csv')">
+            <span class="icon">📊</span>
+            <div><div class="label">汎用 CSV</div><div class="desc">Excel・どのツールでも開ける</div></div>
+          </button>
+          <button class="export-btn" onclick="doExport('notion')">
+            <span class="icon">📝</span>
+            <div><div class="label">Notion</div><div class="desc">CSVインポート対応形式</div></div>
+          </button>
+          <button class="export-btn" onclick="doExport('airtable')">
+            <span class="icon">🗃️</span>
+            <div><div class="label">Airtable</div><div class="desc">CSVインポート対応形式</div></div>
+          </button>
+          <button class="export-btn" onclick="doExport('hubspot')">
+            <span class="icon">🟠</span>
+            <div><div class="label">HubSpot</div><div class="desc">取引（Deal）インポート形式</div></div>
+          </button>
+          <button class="export-btn" onclick="doExport('kintone')">
+            <span class="icon">🔵</span>
+            <div><div class="label">kintone</div><div class="desc">CSVインポート対応形式</div></div>
+          </button>
+          <button class="export-btn" onclick="doExport('salesforce')">
+            <span class="icon">☁️</span>
+            <div><div class="label">Salesforce</div><div class="desc">商談（Opportunity）形式</div></div>
+          </button>
+          <button class="export-btn" onclick="doExport('gsheet')">
+            <span class="icon">🟢</span>
+            <div><div class="label">Google スプレッドシート</div><div class="desc">CSV（シートに貼り付け）</div></div>
+          </button>
+          <button class="export-btn" onclick="doExport('json')">
+            <span class="icon">🔧</span>
+            <div><div class="label">JSON</div><div class="desc">API連携・開発者向け</div></div>
+          </button>
+        </div>
+        <button class="action-btn btn-secondary" onclick="closeExportModal()">閉じる</button>
+      </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+      <div style="text-align:center">
+        <div class="spinner"></div>
+        <div style="margin-top:12px;font-size:13px;color:#64748b">地図を読み込み中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右パネル：詳細 -->
+  <div class="detail-panel" id="detailPanel">
+    <div class="detail-header" id="detailHeader"></div>
+    <div class="detail-body" id="detailBody"></div>
+  </div>
+
+</div>
+
+<script>
+// ===== API設定 =====
+// バックエンド起動後は USE_API = true に切り替え
+const USE_API = true;
+const API_BASE = window.location.hostname === "localhost"
+  ? "http://localhost:8000/api/v1"
+  : "/api/v1";
+
+// APIレスポンスのキー名をフロントエンド形式に変換
+function normalizeApiSite(s) {
+  return {
+    id: s.id, name: s.name, address: s.address,
+    lat: s.lat, lng: s.lng, area: s.area,
+    landuse: s.landuse, landuseLabel: s.landuse_label,
+    flood: s.flood, floodLabel: s.flood_label,
+    slope: s.slope, substationDist: s.substation_dist,
+    landprice: s.land_price, farmClass: s.farm_class,
+    soilRisk: s.soil_risk, roadWidth: s.road_width, score: s.score,
+    jepx: s.jepx || null,
+    solar: s.solar || null,
+    curtailment: s.curtailment || null,
+  };
+}
+
+// ===== サンプルデータ（USE_API=false のとき使用） =====
+const SITES = [
+  {
+    id: 1,
+    name: "福島県 郡山市 工業団地隣接地",
+    address: "福島県郡山市田村町",
+    lat: 37.41, lng: 140.37,
+    area: 8500,
+    landuse: "industrial",
+    landuseLabel: "工業地域",
+    flood: "none",
+    floodLabel: "浸水リスクなし",
+    slope: 2.1,
+    substationDist: 420,
+    landprice: 12800,
+    farmClass: null,
+    soilRisk: "なし",
+    roadWidth: 6.5,
+    score: 92
+  },
+  {
+    id: 2,
+    name: "北海道 苫小牧市 工業専用地域",
+    address: "北海道苫小牧市勇払",
+    lat: 42.67, lng: 141.93,
+    area: 15000,
+    landuse: "industrial",
+    landuseLabel: "工業専用地域",
+    flood: "none",
+    floodLabel: "浸水リスクなし",
+    slope: 0.8,
+    substationDist: 680,
+    landprice: 6200,
+    farmClass: null,
+    soilRisk: "なし",
+    roadWidth: 8.0,
+    score: 88
+  },
+  {
+    id: 3,
+    name: "愛知県 豊橋市 工業専用地域",
+    address: "愛知県豊橋市神野新田",
+    lat: 34.73, lng: 137.38,
+    area: 6200,
+    landuse: "industrial",
+    landuseLabel: "工業専用地域",
+    flood: "low",
+    floodLabel: "浸水想定0.3m",
+    slope: 1.2,
+    substationDist: 950,
+    landprice: 28500,
+    farmClass: null,
+    soilRisk: "液状化リスク低",
+    roadWidth: 5.5,
+    score: 81
+  },
+  {
+    id: 4,
+    name: "岡山県 倉敷市 準工業地域",
+    address: "岡山県倉敷市玉島",
+    lat: 34.53, lng: 133.67,
+    area: 4800,
+    landuse: "quasi-industrial",
+    landuseLabel: "準工業地域",
+    flood: "low",
+    floodLabel: "浸水想定0.2m",
+    slope: 3.5,
+    substationDist: 1200,
+    landprice: 18000,
+    farmClass: null,
+    soilRisk: "なし",
+    roadWidth: 4.5,
+    score: 74
+  },
+  {
+    id: 5,
+    name: "茨城県 鉾田市 農地転用候補",
+    address: "茨城県鉾田市大竹",
+    lat: 36.16, lng: 140.52,
+    area: 12000,
+    landuse: "unzoned",
+    landuseLabel: "用途地域外（農用地区域外）",
+    flood: "none",
+    floodLabel: "浸水リスクなし",
+    slope: 1.8,
+    substationDist: 1800,
+    landprice: 5400,
+    farmClass: "class3-farm",
+    soilRisk: "なし",
+    roadWidth: 5.0,
+    score: 69
+  },
+  {
+    id: 6,
+    name: "熊本県 菊池市 農地（第2種）",
+    address: "熊本県菊池市泗水町",
+    lat: 32.98, lng: 130.88,
+    area: 9500,
+    landuse: "unzoned",
+    landuseLabel: "用途地域外",
+    flood: "none",
+    floodLabel: "浸水リスクなし",
+    slope: 4.2,
+    substationDist: 2400,
+    landprice: 7800,
+    farmClass: "class2-farm",
+    soilRisk: "なし",
+    roadWidth: 4.0,
+    score: 63
+  },
+  {
+    id: 7,
+    name: "宮城県 石巻市 沿岸工業地",
+    address: "宮城県石巻市渡波",
+    lat: 38.43, lng: 141.34,
+    area: 7200,
+    landuse: "industrial",
+    landuseLabel: "工業地域",
+    flood: "mid",
+    floodLabel: "浸水想定1.5m（津波リスク注意）",
+    slope: 1.1,
+    substationDist: 750,
+    landprice: 9200,
+    farmClass: null,
+    soilRisk: "液状化リスク中",
+    roadWidth: 7.0,
+    score: 55
+  },
+  {
+    id: 8,
+    name: "静岡県 焼津市 第1種農地",
+    address: "静岡県焼津市大覚寺",
+    lat: 34.87, lng: 138.32,
+    area: 5500,
+    landuse: "unzoned",
+    landuseLabel: "農振農用地（第1種農地）",
+    flood: "mid",
+    floodLabel: "浸水想定2.0m",
+    slope: 0.5,
+    substationDist: 2100,
+    landprice: 22000,
+    farmClass: "class1-farm",
+    soilRisk: "なし",
+    roadWidth: 3.5,
+    score: 38
+  },
+];
+
+// ===== フィルター状態 =====
+let filters = {
+  landuse: new Set(["non-farm", "class2-farm", "class3-farm", "industrial", "quasi-industrial", "unzoned"]),
+  flood: new Set(["none", "low"]),
+  substationMax: 3000,
+  areaMin: 1000,
+  slopeMax: 5,
+};
+let selectedSiteId = null;
+let sortBy = "score";
+let map = null;
+let currentSites = [];
+
+// ===== 地図初期化 =====
+function initMap() {
+  map = new maplibregl.Map({
+    container: "map",
+    style: {
+      version: 8,
+      sources: {
+        "gsi-pale": {
+          type: "raster",
+          tiles: ["https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"],
+          tileSize: 256,
+          attribution: "国土地理院",
+          maxzoom: 18
+        }
+      },
+      layers: [{ id: "gsi-pale", type: "raster", source: "gsi-pale" }]
+    },
+    center: [137.5, 36.5],
+    zoom: 5,
+  });
+
+  map.on("load", () => {
+    document.getElementById("loadingOverlay").style.display = "none";
+    addMapSources();
+    renderAll();
+    loadSubstations();
+  });
+}
+
+// ===== 地図ソース/レイヤー追加 =====
+function addMapSources() {
+  map.addSource("sites", {
+    type: "geojson",
+    data: buildGeoJSON(SITES)
+  });
+
+  // 候補地円（フィルター通過）
+  map.addLayer({
+    id: "sites-circle",
+    type: "circle",
+    source: "sites",
+    filter: ["==", ["get", "visible"], true],
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 8, 10, 18],
+      "circle-color": [
+        "case",
+        [">=", ["get", "score"], 80], "#4ade80",
+        [">=", ["get", "score"], 50], "#fbbf24",
+        "#f87171"
+      ],
+      "circle-opacity": 0.9,
+      "circle-stroke-width": 2,
+      "circle-stroke-color": [
+        "case",
+        ["==", ["get", "id"], selectedSiteId || -1], "#ffffff",
+        "rgba(0,0,0,0)"
+      ]
+    }
+  });
+
+  // 除外地（グレー）
+  map.addLayer({
+    id: "sites-excluded",
+    type: "circle",
+    source: "sites",
+    filter: ["==", ["get", "visible"], false],
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 6, 10, 14],
+      "circle-color": "#475569",
+      "circle-opacity": 0.4,
+    }
+  });
+
+  // クリックイベント
+  map.on("click", "sites-circle", (e) => {
+    const props = e.features[0].properties;
+    selectSite(props.id);
+  });
+  map.on("mouseenter", "sites-circle", () => map.getCanvas().style.cursor = "pointer");
+  map.on("mouseleave", "sites-circle", () => map.getCanvas().style.cursor = "");
+}
+
+async function loadSubstations() {
+  if (!USE_API) return;
+  try {
+    const res = await fetch(`${API_BASE}/substations/geojson?limit=3000`);
+    const geojson = await res.json();
+    if (!geojson.features || geojson.features.length === 0) return;
+
+    if (map.getSource("substations")) {
+      map.getSource("substations").setData(geojson);
+    } else {
+      map.addSource("substations", { type: "geojson", data: geojson });
+      map.addLayer({
+        id: "substations-circle",
+        type: "circle",
+        source: "substations",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 3, 10, 8],
+          "circle-color": "#f59e0b",
+          "circle-opacity": 0.8,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#92400e",
+        }
+      }, "sites-circle");
+
+      map.on("click", "substations-circle", (e) => {
+        const p = e.features[0].properties;
+        new maplibregl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(`<div style="font-size:13px;color:#1e293b"><b>⚡ ${p.name || "変電所"}</b><br>${p.prefecture || ""}</div>`)
+          .addTo(map);
+      });
+      map.on("mouseenter", "substations-circle", () => map.getCanvas().style.cursor = "pointer");
+      map.on("mouseleave", "substations-circle", () => map.getCanvas().style.cursor = "");
+    }
+  } catch (e) {
+    console.warn("変電所データ取得失敗:", e);
+  }
+}
+
+function buildGeoJSON(sites) {
+  return {
+    type: "FeatureCollection",
+    features: sites.map(s => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [s.lng, s.lat] },
+      properties: {
+        id: s.id,
+        score: s.score,
+        scoreLabel: s.score + "点",
+        visible: isVisible(s)
+      }
+    }))
+  };
+}
+
+// ===== フィルター判定 =====
+function isVisible(site) {
+  const luKey = site.farmClass || site.landuse;
+  if (!filters.landuse.has(luKey) && !filters.landuse.has(site.landuse)) {
+    if (site.farmClass && !filters.landuse.has(site.farmClass)) return false;
+    if (!site.farmClass && !filters.landuse.has(site.landuse)) return false;
+  }
+  if (!filters.flood.has(site.flood)) return false;
+  if (site.substationDist > filters.substationMax) return false;
+  if (site.area < filters.areaMin) return false;
+  if (site.slope > filters.slopeMax) return false;
+  return true;
+}
+
+// ===== 全体再描画 =====
+async function renderAll() {
+  let allSites = SITES;
+  let visible;
+
+  if (USE_API) {
+    // APIからフィルター済みデータを取得
+    const params = new URLSearchParams();
+    filters.landuse.forEach(v => params.append("landuse", v));
+    filters.flood.forEach(v => params.append("flood", v));
+    params.set("substation_max", filters.substationMax);
+    params.set("area_min", filters.areaMin);
+    params.set("slope_max", filters.slopeMax);
+
+    try {
+      const res = await fetch(`${API_BASE}/sites?${params}`);
+      const data = await res.json();
+      allSites = data.map(normalizeApiSite);
+    } catch (e) {
+      console.error("API取得失敗:", e);
+      allSites = SITES; // フォールバック
+    }
+    visible = allSites;
+
+    // 地図上は全件表示（APIが既にフィルター済み）
+    if (map && map.getSource("sites")) {
+      map.getSource("sites").setData({
+        type: "FeatureCollection",
+        features: allSites.map(s => ({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [s.lng, s.lat] },
+          properties: { id: s.id, score: s.score, scoreLabel: s.score + "点", visible: true }
+        }))
+      });
+    }
+  } else {
+    // モック：ローカルでフィルタリング
+    visible = SITES.filter(isVisible);
+    if (map && map.getSource("sites")) {
+      map.getSource("sites").setData(buildGeoJSON(SITES));
+    }
+  }
+
+  // ソート
+  visible.sort((a, b) => {
+    if (sortBy === "score") return b.score - a.score;
+    if (sortBy === "area") return b.area - a.area;
+    if (sortBy === "distance") return a.substationDist - b.substationDist;
+    return 0;
+  });
+
+  currentSites = visible;
+  document.getElementById("resultCount").textContent = visible.length;
+
+  // 地図更新
+  if (map && map.getSource("sites")) {
+    map.getSource("sites").setData(buildGeoJSON(SITES));
+  }
+
+  // リスト更新
+  renderSiteList(visible);
+}
+
+function renderSiteList(sites) {
+  const el = document.getElementById("siteList");
+  el.innerHTML = "";
+  if (sites.length === 0) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:#475569;font-size:13px">条件を満たす候補地がありません</div>';
+    return;
+  }
+  sites.forEach(s => {
+    const cls = s.score >= 80 ? "score-high" : s.score >= 50 ? "score-mid" : "score-low";
+    const chipFlood = s.flood === "none" ? "chip-ok" : s.flood === "low" ? "chip-warn" : "chip-ng";
+    const chipFarm = s.farmClass === "class1-farm" ? "chip-ng" : s.farmClass ? "chip-warn" : "chip-ok";
+    const div = document.createElement("div");
+    div.className = "site-card" + (s.id === selectedSiteId ? " selected" : "");
+    div.dataset.id = s.id;
+    div.innerHTML = `
+      <div class="score-badge ${cls}">${s.score}</div>
+      <div class="site-info">
+        <div class="name">${s.name}</div>
+        <div class="meta">
+          <span>${(s.area/1000).toFixed(1)}千㎡</span>
+          <span>変電所 ${s.substationDist}m</span>
+        </div>
+        <div>
+          <span class="tag-chip ${chipFlood}">${s.floodLabel}</span>
+          ${s.farmClass ? `<span class="tag-chip ${chipFarm}">${s.landuseLabel}</span>` : `<span class="tag-chip chip-ok">${s.landuseLabel}</span>`}
+        </div>
+      </div>
+    `;
+    div.addEventListener("click", () => selectSite(s.id));
+    el.appendChild(div);
+  });
+}
+
+// ===== サイト選択 =====
+function selectSite(id) {
+  selectedSiteId = id;
+  const site = currentSites.find(s => s.id === id) || SITES.find(s => s.id === id);
+  if (!site) return;
+
+  // 地図移動
+  map.flyTo({ center: [site.lng, site.lat], zoom: 12, duration: 800 });
+
+  // リスト再描画（選択状態）
+  document.querySelectorAll(".site-card").forEach(el => {
+    el.classList.toggle("selected", Number(el.dataset.id) === id);
+  });
+
+  // 地図レイヤー選択状態更新
+  if (map.getLayer("sites-circle")) {
+    map.setPaintProperty("sites-circle", "circle-stroke-color", [
+      "case",
+      ["==", ["get", "id"], id], "#ffffff",
+      "rgba(0,0,0,0)"
+    ]);
+    map.setPaintProperty("sites-circle", "circle-stroke-width", [
+      "case",
+      ["==", ["get", "id"], id], 3,
+      2
+    ]);
+  }
+
+  // 詳細パネル
+  showDetail(site);
+}
+
+function showDetail(site) {
+  const panel = document.getElementById("detailPanel");
+  panel.classList.add("open");
+
+  const scoreColor = site.score >= 80 ? "#4ade80" : site.score >= 50 ? "#fbbf24" : "#f87171";
+  const scoreLabel = site.score >= 80 ? "優良" : site.score >= 50 ? "検討可" : "要注意";
+
+  document.getElementById("detailHeader").innerHTML = `
+    <button class="detail-close" onclick="closeDetail()">✕</button>
+    <div class="score-label">総合スコア</div>
+    <div class="score-big" style="color:${scoreColor}">${site.score}<span style="font-size:20px;color:#64748b">/100</span></div>
+    <div style="color:${scoreColor};font-size:13px;font-weight:600;margin-top:2px">${scoreLabel}</div>
+    <div class="site-name">${site.name}</div>
+    <div class="site-addr">📍 ${site.address}</div>
+  `;
+
+  const farmStatus = site.farmClass === "class1-farm" ? ["ng","第1種農地（転用原則不可）"] :
+                     site.farmClass === "class2-farm" ? ["warn","第2種農地（転用要協議）"] :
+                     site.farmClass === "class3-farm" ? ["warn","第3種農地（転用可）"] :
+                     ["ok","農地なし（転用不要）"];
+  const floodStatus = site.flood === "none" ? ["ok","なし"] :
+                      site.flood === "low"  ? ["warn",`あり（${site.floodLabel}）`] :
+                      ["ng", site.floodLabel];
+
+  document.getElementById("detailBody").innerHTML = `
+    <div class="section-title">基本情報</div>
+    <div class="detail-row"><span class="key">面積</span><span class="val">${site.area.toLocaleString()} ㎡</span></div>
+    <div class="detail-row"><span class="key">地価（概算）</span><span class="val">${site.landprice.toLocaleString()} 円/㎡</span></div>
+    <div class="detail-row"><span class="key">傾斜</span><span class="val">${site.slope}°</span></div>
+    <div class="detail-row"><span class="key">接道幅員</span><span class="val">${site.roadWidth}m</span></div>
+
+    <div class="section-title" style="margin-top:16px">系統連系</div>
+    <div class="detail-row"><span class="key">最寄り変電所距離</span><span class="val ${site.substationDist < 1000 ? 'ok' : site.substationDist < 2000 ? 'warn' : 'ng'}">${site.substationDist}m</span></div>
+    <div class="detail-row"><span class="key">連系電圧（推定）</span><span class="val">6.6kV（高圧）</span></div>
+    <div class="detail-row"><span class="key">接続費用（概算）</span><span class="val">${site.substationDist < 1000 ? '低〜中' : site.substationDist < 2500 ? '中' : '高'}</span></div>
+
+    <div class="section-title" style="margin-top:16px">法規制・リスク</div>
+    <div class="detail-row"><span class="key">農地規制</span><span class="val ${farmStatus[0]}">${farmStatus[1]}</span></div>
+    <div class="detail-row"><span class="key">用途地域</span><span class="val">${site.landuseLabel}</span></div>
+    <div class="detail-row"><span class="key">洪水リスク</span><span class="val ${floodStatus[0]}">${floodStatus[1]}</span></div>
+    <div class="detail-row"><span class="key">土壌・地盤</span><span class="val">${site.soilRisk}</span></div>
+
+    <div class="section-title" style="margin-top:16px">スコア内訳</div>
+    <div class="progress-bar-wrap">
+      ${scoreBar("系統連系適合性", Math.max(0, 100 - site.substationDist / 50), "fill-blue")}
+      ${scoreBar("法規制クリア度", farmStatus[0]==="ok" ? 95 : farmStatus[0]==="warn" ? 60 : 20, "fill-green")}
+      ${scoreBar("ハザード安全性", site.flood==="none" ? 100 : site.flood==="low" ? 70 : 30, "fill-yellow")}
+      ${scoreBar("立地条件", Math.min(100, site.area/200), "fill-blue")}
+      ${site.jepx ? scoreBar(`JEPX収益性（${site.jepx.area}エリア）`, site.jepx.jepx_score, "fill-green") : ""}
+      ${site.solar ? scoreBar(`太陽光ポテンシャル（${site.solar.ghi}kWh/m²/日）`, site.solar.solar_score, "fill-yellow") : ""}
+      ${site.curtailment ? scoreBar(`出力制御ポテンシャル（${site.curtailment.area}エリア）`, site.curtailment.curtailment_score, "fill-green") : ""}
+    </div>
+    ${site.jepx ? `
+    <div class="section-title" style="margin-top:16px">JEPX卸価格（${site.jepx.data_year}年）</div>
+    <div class="detail-row"><span class="key">エリア</span><span class="val">${site.jepx.area}</span></div>
+    <div class="detail-row"><span class="key">年間平均価格</span><span class="val">${site.jepx.avg_price} 円/kWh</span></div>
+    <div class="detail-row"><span class="key">ピーク平均</span><span class="val">${site.jepx.peak_avg} 円/kWh</span></div>
+    <div class="detail-row"><span class="key">オフピーク平均</span><span class="val">${site.jepx.offpeak_avg} 円/kWh</span></div>
+    <div class="detail-row"><span class="key">ピーク差</span><span class="val ${site.jepx.spread > 5 ? 'ok' : site.jepx.spread > 2 ? 'warn' : ''}">${site.jepx.spread} 円/kWh</span></div>
+    <div class="detail-row"><span class="key">収益性スコア</span><span class="val ok">${site.jepx.jepx_score} / 100</span></div>
+    ` : ""}
+    ${site.curtailment ? `
+    <div class="section-title" style="margin-top:16px">再エネ出力制御（BESS需要）</div>
+    <div class="detail-row"><span class="key">エリア</span><span class="val">${site.curtailment.area}</span></div>
+    <div class="detail-row"><span class="key">出力制御率（2023年度実績）</span><span class="val ${site.curtailment.rate_2023 > 3 ? 'ok' : site.curtailment.rate_2023 > 1 ? 'warn' : ''}">${site.curtailment.rate_2023}%</span></div>
+    <div class="detail-row"><span class="key">出力制御率（2024年度見通し）</span><span class="val">${site.curtailment.rate_2024}%</span></div>
+    <div class="detail-row"><span class="key">BESSニーズスコア</span><span class="val ok">${site.curtailment.curtailment_score} / 100</span></div>
+    <div style="font-size:10px;color:#475569;padding:4px 0 8px">出力制御率が高いほど、BESSによる蓄電・再放電の経済価値が高い</div>
+    ` : ""}
+
+    ${site.solar ? `
+    <div class="section-title" style="margin-top:16px">太陽光ポテンシャル</div>
+    <div class="detail-row"><span class="key">都道府県</span><span class="val">${site.solar.prefecture}</span></div>
+    <div class="detail-row"><span class="key">年間平均日射量</span><span class="val">${site.solar.ghi} kWh/m²/日</span></div>
+    <div class="detail-row"><span class="key">太陽光スコア</span><span class="val ok">${site.solar.solar_score} / 100</span></div>
+    <div class="detail-row"><span class="key">出典</span><span class="val" style="font-size:11px">${site.solar.data_source}</span></div>
+    ` : ""}
+
+    <div class="section-title" style="margin-top:16px">💰 収益シミュレーター</div>
+    ${renderSimulator(site)}
+
+    <button class="action-btn btn-primary" style="margin-top:16px" onclick="openExportModal(${site.id})">📤 この候補地を案件化する</button>
+
+    <div class="section-title" style="margin-top:8px">申請フロー自動判定</div>
+    ${renderPermitFlow(site)}
+    <div style="padding:0 0 16px">
+      <button class="action-btn btn-secondary" onclick="alert('詳細レポートをPDF出力します（本番版で実装）')">📄 レポート出力</button>
+    </div>
+  `;
+  // シミュレーターの初期計算
+  setTimeout(() => calcSim(site.id), 30);
+}
+
+// ===== 申請フロー生成 =====
+function getPermitFlow(site) {
+  const permits = [];
+
+  // 1. 農地法
+  if (site.farmClass === "class1-farm") {
+    permits.push({
+      name: "農地法（農地転用）", status: "ng",
+      badge: "転用原則不可",
+      note: "第1種農地への蓄電池施設設置は原則認められません。土地の選定を見直してください。",
+      steps: [], months: null,
+    });
+  } else if (site.farmClass === "class2-farm") {
+    permits.push({
+      name: "農地法（農地転用許可）", status: "warn",
+      badge: "要許可・協議",
+      note: "第2種農地。農業委員会 + 都道府県知事の許可が必要です。代替地の検討が求められます。",
+      steps: [
+        "農業委員会への事前相談",
+        "農地転用許可申請（農業委員会 → 都道府県知事）",
+        "許可書受領・地目変更登記",
+      ],
+      months: "2〜4ヶ月",
+    });
+  } else if (site.farmClass === "class3-farm") {
+    permits.push({
+      name: "農地法（農地転用許可）", status: "warn",
+      badge: "要許可",
+      note: "第3種農地。農業委員会への許可申請が必要ですが、転用は比較的認められやすい区分です。",
+      steps: [
+        "農業委員会への事前相談",
+        "農地転用許可申請（農業委員会）",
+        "許可書受領・地目変更登記",
+      ],
+      months: "1〜2ヶ月",
+    });
+  }
+
+  // 2. 都市計画法（開発許可）
+  if (site.landuse === "unzoned") {
+    permits.push({
+      name: "都市計画法（開発許可）", status: "warn",
+      badge: "要確認",
+      note: "用途地域外のため、市街化調整区域の場合は開発許可が必要です。市区町村への事前相談が必須です。",
+      steps: [
+        "市区町村の都市計画担当窓口に事前相談",
+        "開発許可申請（必要な場合）",
+        "許可後に工事着工",
+      ],
+      months: "1〜3ヶ月",
+    });
+  } else if (site.landuse === "quasi-industrial") {
+    permits.push({
+      name: "都市計画法", status: "ok",
+      badge: "原則不要",
+      note: "準工業地域は蓄電池施設の設置が認められる用途地域です。建築確認申請のみで対応可能です。",
+      steps: ["建築確認申請（建築物を伴う場合）"],
+      months: "1ヶ月",
+    });
+  } else if (site.landuse === "industrial") {
+    permits.push({
+      name: "都市計画法", status: "ok",
+      badge: "不要",
+      note: "工業・工業専用地域は最も適した用途地域です。開発許可は不要です。",
+      steps: ["建築確認申請（建築物を伴う場合）"],
+      months: "1ヶ月",
+    });
+  }
+
+  // 3. 電気事業法（系統連系）
+  permits.push({
+    name: "電気事業法（系統連系申請）", status: "ok",
+    badge: "必須・標準手続",
+    note: `最寄り変電所まで約${site.substationDist}m。距離が近いほど接続費用が低くなります。`,
+    steps: [
+      "電力会社への事前相談（2〜4週間）",
+      "接続検討申込・回答待ち（原則3ヶ月）",
+      "工事費負担金の支払い",
+      "系統連系工事・試運転",
+    ],
+    months: "4〜8ヶ月",
+  });
+
+  // 4. 消防法
+  permits.push({
+    name: "消防法（蓄電池設備届出）", status: "ok",
+    badge: "必須",
+    note: "蓄電池の容量・種類に応じて消防署への届出または許可申請が必要です。",
+    steps: [
+      "蓄電池容量・仕様の確定",
+      "消防署への事前相談",
+      "設備設置届出または危険物製造所等許可申請",
+      "消防検査",
+    ],
+    months: "1〜3ヶ月",
+  });
+
+  // 5. 面積が大きい場合：工場立地法
+  if (site.area >= 9000) {
+    permits.push({
+      name: "工場立地法（届出）", status: "warn",
+      badge: "要確認",
+      note: "敷地面積9,000㎡以上または建築面積3,000㎡以上の場合に適用される可能性があります。",
+      steps: [
+        "都道府県知事（または市区町村長）への届出",
+        "緑地・環境施設の確保",
+      ],
+      months: "1〜2ヶ月",
+    });
+  }
+
+  return permits;
+}
+
+function renderPermitFlow(site) {
+  const permits = getPermitFlow(site);
+  const hasNg = permits.some(p => p.status === "ng");
+  const hasWarn = permits.some(p => p.status === "warn");
+  const totalMonths = permits
+    .filter(p => p.months)
+    .map(p => parseInt(p.months.split("〜")[1] || p.months))
+    .reduce((a, b) => a + b, 0);
+
+  const overallColor = hasNg ? "#f87171" : hasWarn ? "#fbbf24" : "#4ade80";
+  const overallLabel = hasNg ? "設置困難" : hasWarn ? "要協議・申請" : "標準申請";
+
+  return `
+    <div style="background:#0f172a;border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:12px;color:#94a3b8">総合判定</span>
+        <span style="font-size:13px;font-weight:700;color:${overallColor}">${overallLabel}</span>
+      </div>
+      <div style="font-size:11px;color:#64748b">想定申請期間合計（並行手続き除く）：最大 ${totalMonths}ヶ月</div>
+      <div style="font-size:10px;color:#475569;margin-top:4px">※市町村条例・個別審査により変動します。必ず事前に行政窓口へご確認ください。</div>
+    </div>
+    ${permits.map(p => `
+      <div style="border:1px solid #334155;border-radius:8px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:13px;font-weight:600;color:#e2e8f0">${p.name}</span>
+          <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:${p.status==="ng"?"#450a0a":p.status==="warn"?"#713f12":"#14532d"};color:${p.status==="ng"?"#f87171":p.status==="warn"?"#fbbf24":"#4ade80"}">${p.badge}</span>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">${p.note}</div>
+        ${p.steps.length > 0 ? `
+        <div style="font-size:11px;color:#64748b">
+          ${p.steps.map((s, i) => `<div style="padding:2px 0">Step${i+1}: ${s}</div>`).join("")}
+          ${p.months ? `<div style="margin-top:4px;color:#38bdf8">目安期間: ${p.months}</div>` : ""}
+        </div>` : ""}
+      </div>
+    `).join("")}
+  `;
+}
+
+function scoreBar(label, val, cls) {
+  const pct = Math.min(100, Math.max(0, Math.round(val)));
+  return `
+    <div class="progress-item">
+      <div class="progress-label"><span>${label}</span><span style="color:#e2e8f0">${pct}</span></div>
+      <div class="progress-track"><div class="progress-fill ${cls}" style="width:${pct}%"></div></div>
+    </div>
+  `;
+}
+
+function closeDetail() {
+  document.getElementById("detailPanel").classList.remove("open");
+  selectedSiteId = null;
+  document.querySelectorAll(".site-card").forEach(el => el.classList.remove("selected"));
+}
+
+// ===== イベント：トグルボタン =====
+document.querySelectorAll(".toggle-btn[data-filter]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const f = btn.dataset.filter;
+    const v = btn.dataset.val;
+    if (filters[f].has(v)) {
+      filters[f].delete(v);
+      btn.classList.remove("active");
+    } else {
+      filters[f].add(v);
+      btn.classList.add("active");
+    }
+    renderAll();
+  });
+});
+
+// ===== イベント：スライダー =====
+document.getElementById("substationRange").addEventListener("input", e => {
+  filters.substationMax = Number(e.target.value);
+  document.getElementById("substationVal").textContent = Number(e.target.value).toLocaleString() + "m以内";
+  renderAll();
+});
+document.getElementById("areaRange").addEventListener("input", e => {
+  filters.areaMin = Number(e.target.value);
+  document.getElementById("areaVal").textContent = Number(e.target.value).toLocaleString() + "㎡〜";
+  renderAll();
+});
+document.getElementById("slopeRange").addEventListener("input", e => {
+  filters.slopeMax = Number(e.target.value);
+  document.getElementById("slopeVal").textContent = e.target.value + "°以下";
+  renderAll();
+});
+
+// ===== ソート =====
+document.getElementById("sortSelect").addEventListener("change", e => {
+  sortBy = e.target.value;
+  renderAll();
+});
+
+// ===== 収益シミュレーター =====
+
+function calcOptimalPreset(site) {
+  // ① 土地面積から最大容量（1MWh/80㎡）
+  const cap_from_area = site.area / 80;
+
+  // ② 変電所距離から連系電圧・出力上限を推定
+  let max_output_mw, grid_label;
+  if (site.substationDist < 500) {
+    max_output_mw = 20; grid_label = "特別高圧連系も視野（変電所500m未満）";
+  } else if (site.substationDist < 1500) {
+    max_output_mw = 10; grid_label = "高圧連系・大規模（変電所1.5km未満）";
+  } else if (site.substationDist < 3000) {
+    max_output_mw = 5;  grid_label = "高圧連系・中規模（変電所3km未満）";
+  } else {
+    max_output_mw = 2;  grid_label = "高圧連系・標準（変電所3km超）";
+  }
+
+  // ③ 0.5C rate（2時間放電）で出力と容量を最適化
+  const optimal_output_mw = Math.min(cap_from_area * 0.5, max_output_mw);
+  const optimal_cap_mwh   = Math.max(1, optimal_output_mw * 2);
+
+  // ④ 規模別設備単価
+  let unit_price, unit_label;
+  if (optimal_cap_mwh >= 20) {
+    unit_price = 5.5; unit_label = "20MWh超の規模経済";
+  } else if (optimal_cap_mwh >= 10) {
+    unit_price = 6.0; unit_label = "10-20MWhのスケールメリット";
+  } else if (optimal_cap_mwh >= 5) {
+    unit_price = 7.0; unit_label = "5-10MWh中規模";
+  } else {
+    unit_price = 8.0; unit_label = "5MWh未満小規模";
+  }
+
+  return {
+    cap_mwh:    Math.round(optimal_cap_mwh),
+    power_mw:   Math.round(optimal_output_mw * 2) / 2,
+    unit_price,
+    rationale: [
+      `容量: 土地${site.area.toLocaleString()}㎡ ÷ 80㎡/MWh → ${cap_from_area.toFixed(1)}MWh上限`,
+      `出力: ${grid_label}`,
+      `C-rate: 0.5C（系統用BESS標準・2時間放電）`,
+      `単価: ${unit_price}万円/kWh（${unit_label}）`,
+    ],
+  };
+}
+
+function renderSimulator(site) {
+  const spread = site.jepx?.spread ?? 5.0;
+  const area   = site.jepx?.area ?? "不明";
+  const preset = calcOptimalPreset(site);
+
+  return `
+    <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px">
+      <div style="color:#38bdf8;font-weight:600;margin-bottom:6px">⚡ 最適プリセット（規制・仕様ベース）</div>
+      ${preset.rationale.map(r => `<div style="color:#64748b;padding:1px 0">・${r}</div>`).join("")}
+      <button onclick="resetPreset(${site.id})" style="margin-top:6px;font-size:10px;padding:3px 8px;background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:4px;cursor:pointer">↺ プリセットに戻す</button>
+    </div>
+
+    <div class="sim-input-row">
+      <label>蓄電池容量 <span id="simCapLabel">${preset.cap_mwh} MWh</span></label>
+      <input type="range" id="simCap" min="1" max="${Math.max(preset.cap_mwh * 2, 20)}" step="1" value="${preset.cap_mwh}"
+        style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
+    </div>
+    <div class="sim-input-row">
+      <label>出力 <span id="simPowerLabel">${preset.power_mw} MW</span></label>
+      <input type="range" id="simPower" min="0.5" max="${Math.max(preset.power_mw * 2, 10)}" step="0.5" value="${preset.power_mw}"
+        style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
+    </div>
+    <div class="sim-input-row">
+      <label>BESS設備単価 <span id="simUnitLabel">${preset.unit_price} 万円/kWh</span></label>
+      <input type="range" id="simUnit" min="3" max="10" step="0.5" value="${preset.unit_price}"
+        style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
+    </div>
+    <div style="font-size:11px;color:#475569;margin-bottom:8px">
+      JEPXスプレッド参照：${area}エリア ${spread} 円/kWh
+    </div>
+    <div id="simResults${site.id}"></div>
+  `;
+}
+
+function resetPreset(siteId) {
+  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+  if (!site) return;
+  const p = calcOptimalPreset(site);
+  document.getElementById("simCap").value   = p.cap_mwh;
+  document.getElementById("simPower").value = p.power_mw;
+  document.getElementById("simUnit").value  = p.unit_price;
+  calcSim(siteId);
+}
+
+function calcSim(siteId) {
+  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+  if (!site) return;
+
+  const cap_mwh  = parseFloat(document.getElementById("simCap").value);
+  const power_mw = parseFloat(document.getElementById("simPower").value);
+  const unit_man = parseFloat(document.getElementById("simUnit").value); // 万円/kWh
+
+  document.getElementById("simCapLabel").textContent   = `${cap_mwh} MWh`;
+  document.getElementById("simPowerLabel").textContent = `${power_mw} MW`;
+  document.getElementById("simUnitLabel").textContent  = `${unit_man} 万円/kWh`;
+
+  const cap_kwh  = cap_mwh * 1000;
+  const power_kw = power_mw * 1000;
+
+  // ── 収益計算 ──
+  const spread    = site.jepx?.spread ?? 5.0;
+  const cycles    = 300;   // 年間充放電サイクル
+  const eff       = 0.88;  // ラウンドトリップ効率
+
+  const rev_jepx  = spread * cap_kwh * cycles * eff;              // JEPX裁定
+  const rev_cap   = power_kw * 10000;                              // 容量市場（約10,000円/kW/年）
+  const rev_reg   = power_kw * 2000;                               // 需給調整市場（概算）
+  const rev_total = rev_jepx + rev_cap + rev_reg;
+
+  // ── コスト計算 ──
+  const capex     = unit_man * 10000 * cap_kwh;                    // 設備CAPEX（円）
+  const om_cost   = capex * 0.02;                                   // O&M（CAPEX×2%/年）
+  const net_rev   = rev_total - om_cost;
+  const payback   = net_rev > 0 ? capex / net_rev : null;
+
+  const fmt = n => n >= 1e8
+    ? `${(n/1e8).toFixed(1)}億円`
+    : `${(n/1e6).toFixed(1)}百万円`;
+
+  const maxRev = rev_total;
+  const barPct = v => Math.round(v / maxRev * 100);
+
+  document.getElementById(`simResults${siteId}`).innerHTML = `
+    <div class="sim-result-grid">
+      <div class="sim-result-card">
+        <div class="label">年間総収益（概算）</div>
+        <div class="value" style="color:#4ade80">${fmt(rev_total)}</div>
+        <div class="sub">税引前・O&M控除前</div>
+      </div>
+      <div class="sim-result-card">
+        <div class="label">設備CAPEX（概算）</div>
+        <div class="value">${fmt(capex)}</div>
+        <div class="sub">設備費のみ（土地・連系工事別）</div>
+      </div>
+      <div class="sim-result-card">
+        <div class="label">純収益（O&M控除後）</div>
+        <div class="value" style="color:#38bdf8">${fmt(net_rev)}</div>
+        <div class="sub">O&M ${fmt(om_cost)}/年</div>
+      </div>
+      <div class="sim-result-card">
+        <div class="label">単純回収期間</div>
+        <div class="value" style="color:${payback && payback < 10 ? '#4ade80' : payback && payback < 15 ? '#fbbf24' : '#f87171'}">
+          ${payback ? `${payback.toFixed(1)}年` : "－"}
+        </div>
+        <div class="sub">設備費ベース</div>
+      </div>
+    </div>
+
+    <div style="font-size:11px;color:#64748b;margin-bottom:6px">収益内訳</div>
+    <div class="sim-bar-wrap">
+      <div class="sim-bar-item">
+        <div class="bar-label">JEPX裁定</div>
+        <div class="bar-track"><div class="bar-fill" style="background:#38bdf8;width:${barPct(rev_jepx)}%"></div></div>
+        <div class="bar-val">${fmt(rev_jepx)}</div>
+      </div>
+      <div class="sim-bar-item">
+        <div class="bar-label">容量市場</div>
+        <div class="bar-track"><div class="bar-fill" style="background:#4ade80;width:${barPct(rev_cap)}%"></div></div>
+        <div class="bar-val">${fmt(rev_cap)}</div>
+      </div>
+      <div class="sim-bar-item">
+        <div class="bar-label">需給調整市場</div>
+        <div class="bar-track"><div class="bar-fill" style="background:#a78bfa;width:${barPct(rev_reg)}%"></div></div>
+        <div class="bar-val">${fmt(rev_reg)}</div>
+      </div>
+    </div>
+    <div class="sim-warning">
+      ※ 概算値です。JEPX裁定は${site.jepx?.area ?? "各"}エリアの${site.jepx?.data_year ?? "直近"}年実績スプレッド（${spread}円/kWh）をベースに算出。
+      容量市場は第2回オークション約定単価（10,000円/kW/年）を参考値として使用。
+      実際の収益は市況・系統制約・税制・補助金により大きく変動します。
+    </div>
+  `;
+}
+
+// ===== エクスポート機能 =====
+let exportTargetSiteId = null;
+
+function openExportModal(siteId) {
+  exportTargetSiteId = siteId;
+  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+  if (!site) return;
+
+  const permits = getPermitFlow(site);
+  const permitNames = permits.map(p => p.name).join("、");
+
+  document.getElementById("exportSubtitle").textContent = site.name;
+  document.getElementById("exportPreview").innerHTML = `
+    <strong>エクスポート内容：</strong><br>
+    候補地名 / 住所 / スコア / 用途地域 / 農地区分 / 変電所距離 / 地価 /<br>
+    JEPXエリア・収益性 / 太陽光ポテンシャル / 必要申請一覧 / 申請難易度 / 案件化日時
+  `;
+  document.getElementById("exportModalBg").classList.add("open");
+}
+
+function closeExportModal() {
+  document.getElementById("exportModalBg").classList.remove("open");
+}
+
+function buildExportData(site) {
+  const permits = getPermitFlow(site);
+  const hasNg = permits.some(p => p.status === "ng");
+  const hasWarn = permits.some(p => p.status === "warn");
+  const difficulty = hasNg ? "困難" : hasWarn ? "要協議" : "標準";
+  const permitNames = permits.map(p => p.name).join(" / ");
+  const now = new Date().toLocaleString("ja-JP");
+
+  return {
+    候補地名: site.name,
+    住所: site.address,
+    都道府県: site.prefecture || "",
+    面積_m2: site.area,
+    総合スコア: site.score,
+    用途地域: site.landuseLabel,
+    農地区分: site.farmClass || "農地なし",
+    洪水リスク: site.floodLabel,
+    変電所距離_m: site.substationDist,
+    地価_円per_m2: site.landprice,
+    傾斜_度: site.slope,
+    接道幅員_m: site.roadWidth,
+    土壌リスク: site.soilRisk,
+    JEPXエリア: site.jepx?.area || "",
+    JEPX収益性スコア: site.jepx?.jepx_score || "",
+    年間平均価格_円kWh: site.jepx?.avg_price || "",
+    ピークオフピーク価格差: site.jepx?.spread || "",
+    太陽光スコア: site.solar?.solar_score || "",
+    年間日射量_kWh_m2_day: site.solar?.ghi || "",
+    申請難易度: difficulty,
+    必要申請一覧: permitNames,
+    緯度: site.lat,
+    経度: site.lng,
+    案件化日時: now,
+    ステータス: "新規",
+    担当者: "",
+    地権者名: "",
+    連絡先: "",
+    初回接触日: "",
+    次回アクション: "",
+    メモ: "",
+  };
+}
+
+function toCSV(rows, headers) {
+  const escape = v => {
+    const s = String(v ?? "");
+    return s.includes(",") || s.includes("\n") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers.map(escape).join(",")];
+  rows.forEach(row => lines.push(headers.map(h => escape(row[h])).join(",")));
+  return "﻿" + lines.join("\r\n");
+}
+
+function downloadFile(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+function doExport(format) {
+  const site = currentSites.find(s => s.id === exportTargetSiteId) || SITES.find(s => s.id === exportTargetSiteId);
+  if (!site) return;
+
+  const data = buildExportData(site);
+  const slug = site.name.replace(/\s/g, "_").slice(0, 20);
+  const date = new Date().toISOString().slice(0, 10);
+
+  if (format === "json") {
+    downloadFile(JSON.stringify(data, null, 2), `BESS_${slug}_${date}.json`, "application/json");
+    return;
+  }
+
+  // ツール別フィールドマッピング
+  const mappings = {
+    csv: {
+      headers: Object.keys(data),
+      row: data,
+      filename: `BESS_${slug}_${date}.csv`,
+    },
+    notion: {
+      headers: ["名前", "住所", "都道府県", "面積(㎡)", "総合スコア", "用途地域", "農地区分",
+        "変電所距離(m)", "地価(円/㎡)", "JEPXエリア", "JEPX収益性", "太陽光スコア",
+        "申請難易度", "必要申請", "ステータス", "担当者", "地権者名", "連絡先", "次回アクション", "メモ"],
+      row: {
+        "名前": data.候補地名, "住所": data.住所, "都道府県": data.都道府県,
+        "面積(㎡)": data.面積_m2, "総合スコア": data.総合スコア, "用途地域": data.用途地域,
+        "農地区分": data.農地区分, "変電所距離(m)": data.変電所距離_m,
+        "地価(円/㎡)": data.地価_円per_m2, "JEPXエリア": data.JEPXエリア,
+        "JEPX収益性": data.JEPX収益性スコア, "太陽光スコア": data.太陽光スコア,
+        "申請難易度": data.申請難易度, "必要申請": data.必要申請一覧,
+        "ステータス": "新規", "担当者": "", "地権者名": "", "連絡先": "", "次回アクション": "", "メモ": "",
+      },
+      filename: `BESS_Notion_${slug}_${date}.csv`,
+    },
+    airtable: {
+      headers: ["Name", "Address", "Prefecture", "Area_m2", "Score", "Zoning", "Farm_Class",
+        "Substation_m", "Land_Price", "JEPX_Area", "JEPX_Score", "Solar_Score",
+        "Permit_Difficulty", "Required_Permits", "Status", "Owner_Name", "Contact", "Next_Action", "Notes"],
+      row: {
+        Name: data.候補地名, Address: data.住所, Prefecture: data.都道府県,
+        Area_m2: data.面積_m2, Score: data.総合スコア, Zoning: data.用途地域,
+        Farm_Class: data.農地区分, Substation_m: data.変電所距離_m,
+        Land_Price: data.地価_円per_m2, JEPX_Area: data.JEPXエリア,
+        JEPX_Score: data.JEPX収益性スコア, Solar_Score: data.太陽光スコア,
+        Permit_Difficulty: data.申請難易度, Required_Permits: data.必要申請一覧,
+        Status: "New", Owner_Name: "", Contact: "", Next_Action: "", Notes: "",
+      },
+      filename: `BESS_Airtable_${slug}_${date}.csv`,
+    },
+    hubspot: {
+      headers: ["Deal Name", "Deal Stage", "Amount", "Close Date", "Deal Owner",
+        "Description", "Property Address", "Property Area (m2)", "BESS Score",
+        "Zoning", "Substation Distance (m)", "Land Price (JPY/m2)",
+        "JEPX Area", "JEPX Score", "Solar Score", "Permit Difficulty", "Required Permits"],
+      row: {
+        "Deal Name": data.候補地名, "Deal Stage": "Prospecting", "Amount": "",
+        "Close Date": "", "Deal Owner": "", "Description": `スコア: ${data.総合スコア} / 申請難易度: ${data.申請難易度}`,
+        "Property Address": data.住所, "Property Area (m2)": data.面積_m2,
+        "BESS Score": data.総合スコア, "Zoning": data.用途地域,
+        "Substation Distance (m)": data.変電所距離_m, "Land Price (JPY/m2)": data.地価_円per_m2,
+        "JEPX Area": data.JEPXエリア, "JEPX Score": data.JEPX収益性スコア,
+        "Solar Score": data.太陽光スコア, "Permit Difficulty": data.申請難易度,
+        "Required Permits": data.必要申請一覧,
+      },
+      filename: `BESS_HubSpot_${slug}_${date}.csv`,
+    },
+    kintone: {
+      headers: ["案件名", "住所", "都道府県", "面積(㎡)", "総合スコア", "用途地域", "農地区分",
+        "変電所距離(m)", "地価(円/㎡)", "JEPXエリア", "JEPX収益性スコア", "太陽光スコア",
+        "申請難易度", "必要申請一覧", "ステータス", "地権者名", "連絡先", "担当者", "次回アクション日", "備考"],
+      row: {
+        "案件名": data.候補地名, "住所": data.住所, "都道府県": data.都道府県,
+        "面積(㎡)": data.面積_m2, "総合スコア": data.総合スコア, "用途地域": data.用途地域,
+        "農地区分": data.農地区分, "変電所距離(m)": data.変電所距離_m,
+        "地価(円/㎡)": data.地価_円per_m2, "JEPXエリア": data.JEPXエリア,
+        "JEPX収益性スコア": data.JEPX収益性スコア, "太陽光スコア": data.太陽光スコア,
+        "申請難易度": data.申請難易度, "必要申請一覧": data.必要申請一覧,
+        "ステータス": "新規", "地権者名": "", "連絡先": "", "担当者": "", "次回アクション日": "", "備考": "",
+      },
+      filename: `BESS_kintone_${slug}_${date}.csv`,
+    },
+    salesforce: {
+      headers: ["Name", "StageName", "CloseDate", "Amount", "OwnerId",
+        "Description", "BillingStreet", "BESS_Score__c", "Zoning__c",
+        "Farm_Class__c", "Substation_Distance__c", "Land_Price__c",
+        "JEPX_Area__c", "JEPX_Score__c", "Solar_Score__c", "Permit_Difficulty__c"],
+      row: {
+        Name: data.候補地名, StageName: "Prospecting", CloseDate: "", Amount: "", OwnerId: "",
+        Description: data.必要申請一覧, BillingStreet: data.住所,
+        BESS_Score__c: data.総合スコア, Zoning__c: data.用途地域,
+        Farm_Class__c: data.農地区分, Substation_Distance__c: data.変電所距離_m,
+        Land_Price__c: data.地価_円per_m2, JEPX_Area__c: data.JEPXエリア,
+        JEPX_Score__c: data.JEPX収益性スコア, Solar_Score__c: data.太陽光スコア,
+        Permit_Difficulty__c: data.申請難易度,
+      },
+      filename: `BESS_Salesforce_${slug}_${date}.csv`,
+    },
+    gsheet: {
+      headers: Object.keys(data),
+      row: data,
+      filename: `BESS_GoogleSheet_${slug}_${date}.csv`,
+    },
+  };
+
+  const m = mappings[format];
+  const csv = toCSV([m.row], m.headers);
+  downloadFile(csv, m.filename, "text/csv;charset=utf-8");
+  closeExportModal();
+}
+
+// ===== 起動 =====
+initMap();
+</script>
+</body>
+</html>
