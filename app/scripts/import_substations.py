@@ -1,164 +1,139 @@
 """
-国土数値情報 P03（発電施設）から変電所データを取得してDBに格納する
+OpenStreetMap Overpass API から日本全国の変電所データを取得してDBに格納する
 実行: python -m app.scripts.import_substations
-オプション: --pref 01,02,03  （都道府県コードを指定。省略時は全国）
 """
-import io
-import math
-import re
+import json
 import sys
 import urllib.request
-import xml.etree.ElementTree as ET
-import zipfile
+import urllib.parse
 
 from app.database import SessionLocal, engine
 from app import models
+from app.area_mapping import PREFECTURE_TO_AREA
 
 models.Base.metadata.create_all(bind=engine)
 
-# 都道府県コード → 都道府県名
-PREFECTURES = {
-    "01": "北海道", "02": "青森県", "03": "岩手県", "04": "宮城県",
-    "05": "秋田県", "06": "山形県", "07": "福島県", "08": "茨城県",
-    "09": "栃木県", "10": "群馬県", "11": "埼玉県", "12": "千葉県",
-    "13": "東京都", "14": "神奈川県", "15": "新潟県", "16": "富山県",
-    "17": "石川県", "18": "福井県", "19": "山梨県", "20": "長野県",
-    "21": "岐阜県", "22": "静岡県", "23": "愛知県", "24": "三重県",
-    "25": "滋賀県", "26": "京都府", "27": "大阪府", "28": "兵庫県",
-    "29": "奈良県", "30": "和歌山県", "31": "鳥取県", "32": "島根県",
-    "33": "岡山県", "34": "広島県", "35": "山口県", "36": "徳島県",
-    "37": "香川県", "38": "愛媛県", "39": "高知県", "40": "福岡県",
-    "41": "佐賀県", "42": "長崎県", "43": "熊本県", "44": "大分県",
-    "45": "宮崎県", "46": "鹿児島県", "47": "沖縄県",
-}
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
-# 試行するデータ年度（新しい順）
-YEARS = ["2022", "2021", "2019"]
+# 日本のバウンディングボックス（南,西,北,東）
+JAPAN_BBOX = "20,122,46,154"
 
-BASE_URL = "https://nlftp.mlit.go.jp/ksj/gml/data/P03/P03-{year}/P03-{yy}_{code}_GML.zip"
+OVERPASS_QUERY = f"""
+[out:json][timeout:120][bbox:{JAPAN_BBOX}];
+(
+  node["power"="substation"];
+  node["power"="sub_station"];
+);
+out body;
+"""
 
 
-def download_zip(pref_code: str) -> bytes | None:
-    for year in YEARS:
-        yy = year[2:]
-        url = BASE_URL.format(year=year, yy=yy, code=pref_code)
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = resp.read()
-            if len(data) > 1000:  # HTMLエラーページでないことを確認
-                return data
-        except Exception:
-            continue
-    return None
+def fetch_substations() -> list[dict]:
+    print("OpenStreetMap から変電所データを取得中（〜1分かかります）...")
+    data = urllib.parse.urlencode({"data": OVERPASS_QUERY}).encode()
+    req = urllib.request.Request(
+        OVERPASS_URL,
+        data=data,
+        headers={"User-Agent": "BESS-Site-Finder/1.0", "Content-Type": "application/x-www-form-urlencoded"},
+    )
+    with urllib.request.urlopen(req, timeout=150) as resp:
+        result = json.loads(resp.read())
+
+    elements = result.get("elements", [])
+    print(f"{len(elements)} 件取得")
+    return elements
 
 
-def parse_gml(gml_text: str, pref_name: str) -> list[dict]:
-    """GMLを解析して変電所（class=2）を抽出"""
-    substations = []
-    try:
-        root = ET.fromstring(gml_text)
-    except ET.ParseError:
-        return []
-
-    # 名前空間を動的に検出
-    ns_map = {}
-    for match in re.finditer(r'xmlns:?(\w*)=["\']([^"\']+)["\']', gml_text[:2000]):
-        prefix, uri = match.group(1), match.group(2)
-        ns_map[prefix or "default"] = uri
-
-    # 変電所クラスコード（2 または 02）
-    SUBSTATION_CLASSES = {"2", "02"}
-
-    # 全要素を走査してclass=2の施設を抽出
-    for elem in root.iter():
-        tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
-
-        if tag not in ("PowerGenerate", "PowerStation"):
-            continue
-
-        # クラス判定
-        cls_val = None
-        for child in elem:
-            child_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-            if child_tag in ("class", "type", "powerGenerateType"):
-                cls_val = (child.text or "").strip()
-                break
-
-        if cls_val not in SUBSTATION_CLASSES and cls_val != "変電所":
-            continue
-
-        # 座標取得
-        lat, lng, name = None, None, ""
-        for child in elem:
-            child_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-            if child_tag == "name":
-                name = (child.text or "").strip()
-            elif child_tag in ("position", "representativePoint"):
-                for pos_elem in child.iter():
-                    pos_tag = pos_elem.tag.split("}")[-1] if "}" in pos_elem.tag else pos_elem.tag
-                    if pos_tag == "pos" and pos_elem.text:
-                        coords = pos_elem.text.strip().split()
-                        if len(coords) >= 2:
-                            try:
-                                lat, lng = float(coords[0]), float(coords[1])
-                            except ValueError:
-                                pass
-
-        if lat and lng and 20 <= lat <= 50 and 120 <= lng <= 150:
-            substations.append({
-                "name": name or f"{pref_name}変電所",
-                "prefecture": pref_name,
-                "lat": lat,
-                "lng": lng,
-            })
-
-    return substations
-
-
-def import_prefecture(pref_code: str, db) -> int:
-    pref_name = PREFECTURES[pref_code]
-    print(f"  {pref_name} を取得中...", end=" ", flush=True)
-
-    zip_data = download_zip(pref_code)
-    if not zip_data:
-        print("スキップ（取得失敗）")
-        return 0
-
-    try:
-        with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
-            gml_files = [n for n in zf.namelist() if n.endswith(".xml") or n.endswith(".gml")]
-            if not gml_files:
-                print("スキップ（GMLなし）")
-                return 0
-
-            count = 0
-            for gml_name in gml_files:
-                raw = zf.read(gml_name)
-                for enc in ("utf-8", "shift_jis", "utf-8-sig"):
-                    try:
-                        gml_text = raw.decode(enc)
-                        break
-                    except UnicodeDecodeError:
-                        continue
-                else:
-                    continue
-
-                for s in parse_gml(gml_text, pref_name):
-                    db.add(models.Substation(**s))
-                    count += 1
-
-            db.commit()
-            print(f"{count}件")
-            return count
-
-    except zipfile.BadZipFile:
-        print("スキップ（ZIPエラー）")
-        return 0
+def prefecture_from_coords(lat: float, lng: float) -> str:
+    """簡易的な都道府県判定（緯度経度の範囲で大まかに判定）"""
+    if lat > 41.3:
+        return "北海道"
+    if lat > 40.0 and lng < 141.5:
+        return "青森県"
+    if lng > 141.0 and lat > 38.5:
+        return "岩手県"
+    if lat > 38.0 and lng < 141.0:
+        return "秋田県"
+    if lat > 38.2:
+        return "宮城県"
+    if lat > 37.5 and lng > 139.5:
+        return "福島県"
+    if lat > 37.5:
+        return "山形県"
+    if lat > 36.5 and lng > 139.8:
+        return "茨城県"
+    if lat > 36.5 and lng > 139.3:
+        return "栃木県"
+    if lat > 36.5 and lng < 139.3:
+        return "群馬県"
+    if lat > 36.0 and lng > 139.3:
+        return "埼玉県"
+    if lat > 35.5 and lng > 139.8:
+        return "千葉県"
+    if 35.5 < lat < 35.9 and 139.0 < lng < 139.9:
+        return "東京都"
+    if lat > 35.3 and lng < 139.4:
+        return "山梨県"
+    if 35.1 < lat < 35.7 and 139.0 < lng < 139.7:
+        return "神奈川県"
+    if lat > 36.0 and lng < 138.5:
+        return "長野県"
+    if lat > 35.5 and lng < 137.5:
+        return "岐阜県"
+    if lat > 35.0 and 136.5 < lng < 137.5:
+        return "愛知県"
+    if lat > 35.0 and 138.0 < lng < 139.0:
+        return "静岡県"
+    if lat > 35.0 and lng < 136.5:
+        return "三重県"
+    if 34.5 < lat < 35.5 and 135.0 < lng < 136.5:
+        return "大阪府"
+    if lat > 35.0 and 135.0 < lng < 136.0:
+        return "京都府"
+    if lat > 35.0 and lng < 135.0:
+        return "兵庫県"
+    if 34.0 < lat < 35.5 and 135.5 < lng < 136.5:
+        return "奈良県"
+    if 34.0 < lat < 34.5:
+        return "和歌山県"
+    if 34.5 < lat < 35.5 and 133.0 < lng < 134.5:
+        return "鳥取県"
+    if 34.5 < lat < 35.3 and 132.0 < lng < 133.5:
+        return "島根県"
+    if 34.0 < lat < 35.0 and 133.5 < lng < 134.5:
+        return "岡山県"
+    if 34.0 < lat < 35.0 and 132.0 < lng < 133.5:
+        return "広島県"
+    if 33.5 < lat < 34.5 and 130.5 < lng < 132.0:
+        return "山口県"
+    if 33.5 < lat < 34.5 and 134.0 < lng < 134.8:
+        return "徳島県"
+    if 33.5 < lat < 34.5 and 133.5 < lng < 134.5:
+        return "香川県"
+    if 33.0 < lat < 34.0 and 132.5 < lng < 133.7:
+        return "愛媛県"
+    if 33.0 < lat < 34.0 and 132.5 < lng < 134.0:
+        return "高知県"
+    if 33.0 < lat < 34.0 and 130.0 < lng < 131.5:
+        return "福岡県"
+    if 33.0 < lat < 34.0 and 129.5 < lng < 130.5:
+        return "佐賀県"
+    if 32.5 < lat < 33.5 and 129.0 < lng < 130.5:
+        return "長崎県"
+    if 32.0 < lat < 33.5 and 130.5 < lng < 131.5:
+        return "熊本県"
+    if 32.5 < lat < 33.5 and 131.0 < lng < 132.0:
+        return "大分県"
+    if 31.5 < lat < 32.5:
+        return "宮崎県"
+    if 31.0 < lat < 32.0:
+        return "鹿児島県"
+    if lat < 27.0:
+        return "沖縄県"
+    return "不明"
 
 
-def run(pref_codes: list[str] | None = None):
-    codes = pref_codes or list(PREFECTURES.keys())
+def run():
     db = SessionLocal()
     try:
         existing = db.query(models.Substation).count()
@@ -171,19 +146,43 @@ def run(pref_codes: list[str] | None = None):
             db.query(models.Substation).delete()
             db.commit()
 
-        print(f"国土数値情報 P03（変電所）を取得します（{len(codes)}都道府県）")
-        total = 0
-        for code in codes:
-            total += import_prefecture(code, db)
+        elements = fetch_substations()
 
-        print(f"\n合計 {total} 件の変電所データを格納しました。")
+        count = 0
+        for elem in elements:
+            lat = elem.get("lat")
+            lng = elem.get("lon")
+            if not lat or not lng:
+                continue
+            if not (20 <= lat <= 46 and 122 <= lng <= 154):
+                continue
+
+            tags = elem.get("tags", {})
+            name = tags.get("name") or tags.get("name:ja") or "変電所"
+            voltage = tags.get("voltage", "")
+            voltage_class = "特別高圧" if voltage and int(voltage.split(";")[0]) >= 66000 else "高圧" if voltage else "不明"
+
+            pref = prefecture_from_coords(lat, lng)
+
+            db.add(models.Substation(
+                name=name,
+                prefecture=pref,
+                lat=lat,
+                lng=lng,
+                voltage_class=voltage_class,
+            ))
+            count += 1
+
+            if count % 500 == 0:
+                db.commit()
+                print(f"  {count} 件処理中...")
+
+        db.commit()
+        print(f"\n合計 {count} 件の変電所データを格納しました。")
+
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    pref_codes = None
-    if "--pref" in sys.argv:
-        idx = sys.argv.index("--pref")
-        pref_codes = sys.argv[idx + 1].split(",")
-    run(pref_codes)
+    run()
