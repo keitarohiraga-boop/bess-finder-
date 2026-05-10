@@ -1210,15 +1210,12 @@ async function loadBessHeatmap() {
     map.on("click", "pref-bess-fill", (e) => {
       const p = e.features[0].properties;
       if (!p.bess_area || p.bess_area === '不明') return;
-      new maplibregl.Popup()
-        .setLngLat(e.lngLat)
-        .setHTML(`<div style="font-size:12px;color:#1e293b">
+      showMapPopup(e.lngLat, `<div style="font-size:12px;color:#1e293b">
           <b>🔋 ${p.bess_area}エリア BESS市場</b><br>
           接続検討量: <b>${Number(p.bess_mw).toLocaleString()} MW</b><br>
           市場成熟度スコア: <b>${p.bess_score} / 100</b><br>
           <span style="font-size:11px;color:#475569">${p.bess_label}</span>
-        </div>`)
-        .addTo(map);
+        </div>`);
     });
     map.on("mouseenter", "pref-bess-fill", () => map.getCanvas().style.cursor = "pointer");
     map.on("mouseleave", "pref-bess-fill", () => map.getCanvas().style.cursor = "");
@@ -1258,10 +1255,7 @@ async function loadBessFacilities() {
         const p = e.features[0].properties;
         const cap = p.capacity_mwh ? `${p.capacity_mwh} MWh` : '不明';
         const pw  = p.power_mw    ? `${p.power_mw} MW`    : '不明';
-        new maplibregl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(`<div style="font-size:13px;color:#1e293b"><b>🔋 ${p.name}</b><br>容量: ${cap}　出力: ${pw}</div>`)
-          .addTo(map);
+        showMapPopup(e.lngLat, `<div style="font-size:13px;color:#1e293b"><b>🔋 ${p.name}</b><br>容量: ${cap}　出力: ${pw}</div>`);
       });
       map.on("mouseenter", "bess-circle", () => map.getCanvas().style.cursor = "pointer");
       map.on("mouseleave", "bess-circle", () => map.getCanvas().style.cursor = "");
@@ -1299,10 +1293,7 @@ async function loadSubstations() {
 
       map.on("click", "substations-circle", (e) => {
         const p = e.features[0].properties;
-        new maplibregl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(`<div style="font-size:13px;color:#1e293b"><b>⚡ ${p.name || "変電所"}</b><br>${p.prefecture || ""}</div>`)
-          .addTo(map);
+        showMapPopup(e.lngLat, `<div style="font-size:13px;color:#1e293b"><b>⚡ ${p.name || "変電所"}</b><br>${p.prefecture || ""}</div>`);
       });
       map.on("mouseenter", "substations-circle", () => map.getCanvas().style.cursor = "pointer");
       map.on("mouseleave", "substations-circle", () => map.getCanvas().style.cursor = "");
@@ -2111,6 +2102,17 @@ function renderLogicTable() {
 
 // ===== 住所評価機能 =====
 let evalMarker = null;
+let _activePopup = null;
+
+function showMapPopup(lngLat, html) {
+  if (_activePopup) _activePopup.remove();
+  _activePopup = new maplibregl.Popup()
+    .setLngLat(lngLat)
+    .setHTML(html)
+    .addTo(map);
+  _activePopup.on('close', () => { _activePopup = null; });
+  return _activePopup;
+}
 
 function openEvalModal() {
   document.getElementById("evalModal").style.display = "flex";
