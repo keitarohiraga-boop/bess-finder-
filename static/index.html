@@ -1683,7 +1683,7 @@ function showDetail(site) {
       </div>
       <div class="section-title">基本情報</div>
       <div class="detail-row"><span class="key">面積</span><span class="val">${site.area.toLocaleString()} ㎡</span></div>
-      <div class="detail-row"><span class="key">地価（概算）</span><span class="val">${(site.landprice||0).toLocaleString()} 円/㎡</span></div>
+      <!-- 地価は地価公示（実データ）に統一。シミュレーターの土地コスト欄に反映済み -->
       <div class="detail-row"><span class="key">傾斜</span><span class="val">${site.slope}°</span></div>
       <div class="detail-row"><span class="key">接道幅員</span><span class="val">${site.roadWidth}m</span></div>
       <div class="section-title" style="margin-top:14px">系統連系</div>
@@ -2576,12 +2576,24 @@ async function loadLandPrice(lat, lng, containerId) {
     const n = d.nearest;
     const price = n.price_per_m2 ? `${Number(n.price_per_m2).toLocaleString()} 円/㎡` : '不明';
     el.innerHTML = `
-      <div class="detail-row"><span class="key">最寄り公示地価</span><span class="val ok">${price}</span></div>
+      <div class="detail-row"><span class="key">近隣参考地価</span><span class="val ok">${price}</span></div>
       <div class="detail-row"><span class="key">調査年</span><span class="val">${n.year ?? '－'}年</span></div>
       <div class="detail-row"><span class="key">用途</span><span class="val">${n.use_type || '－'}</span></div>
       <div class="detail-row"><span class="key">所在</span><span class="val" style="font-size:10px">${n.address || '－'}</span></div>
-      <div style="font-size:10px;color:#475569;margin-top:4px">出典: 国土交通省 不動産情報ライブラリ（実データ）</div>
+      <div style="font-size:10px;color:#475569;margin-top:4px">※対象地そのものの価格ではありません。シミュレーターの土地コストに反映済み。<br>出典: 国土交通省 不動産情報ライブラリ</div>
     `;
+    // シミュレーターのデフォルト土地コストを更新
+    if (n.price_per_m2 && _currentSite) {
+      _landPricePerM2 = n.price_per_m2;
+      const area = _currentSite.area;
+      const totalManyen = Math.round(n.price_per_m2 * area / 10000);
+      const el2 = document.getElementById('landPrice');
+      if (el2) { el2.max = Math.max(totalManyen * 3, 3000); el2.value = totalManyen; }
+      const lbl = document.getElementById('landPriceLabel');
+      if (lbl) lbl.textContent = `${totalManyen.toLocaleString()}万円`;
+      updateLeaseCalc();
+      if (_currentSite) calcSim(_currentSite.id);
+    }
   } catch (e) {
     console.warn("地価公示取得失敗:", e);
   }
@@ -2688,6 +2700,42 @@ const NATIONAL_SUBSIDIES = [
   { name: '地域脱炭素推進交付金', org: '環境省', rate: '定額補助', cap: '事業規模による', note: '脱炭素先行地域で重点支援', url: 'https://www.env.go.jp/' },
   { name: '長期脱炭素電源オークション', org: 'OCCTO', rate: '固定収入', cap: '16,747円/kW/年（第1回）', note: '20年間固定・容量市場と選択', url: 'https://www.occto.or.jp/' },
 ];
+
+// ===== 土地コスト管理 =====
+let _landMode = 'buy';           // 'buy' or 'lease'
+let _landPricePerM2 = null;      // 公示地価 円/㎡（実データ）
+
+function setLandMode(mode) {
+  _landMode = mode;
+  document.getElementById('landBuySection').style.display  = mode === 'buy'   ? 'block' : 'none';
+  document.getElementById('landLeaseSection').style.display = mode === 'lease' ? 'block' : 'none';
+  document.getElementById('landModeBtn-buy').style.background   = mode === 'buy'   ? '#0ea5e9' : '#0f172a';
+  document.getElementById('landModeBtn-buy').style.color        = mode === 'buy'   ? '#fff'    : '#94a3b8';
+  document.getElementById('landModeBtn-lease').style.background = mode === 'lease' ? '#0ea5e9' : '#0f172a';
+  document.getElementById('landModeBtn-lease').style.color      = mode === 'lease' ? '#fff'    : '#94a3b8';
+  if (_currentSite) calcSim(_currentSite.id);
+}
+
+function updateLeaseCalc() {
+  const rate = parseFloat(document.getElementById('leaseRate')?.value || 2);
+  document.getElementById('leaseRateLabel').textContent = `${rate}%`;
+  if (_landPricePerM2 && _currentSite) {
+    const annual = Math.round(_landPricePerM2 * _currentSite.area * rate / 100 / 10000);
+    document.getElementById('landLease').value = Math.min(annual, 9990);
+    document.getElementById('landLeaseLabel').textContent = `${annual.toLocaleString()}万円/年`;
+  }
+  if (_currentSite) calcSim(_currentSite.id);
+}
+
+function getLandCost(area) {
+  if (_landMode === 'buy') {
+    const val = parseFloat(document.getElementById('landPrice')?.value || 0);
+    return { capexAdd: val * 10000, annualAdd: 0, label: `取得 ${val.toLocaleString()}万円` };
+  } else {
+    const val = parseFloat(document.getElementById('landLease')?.value || 0);
+    return { capexAdd: 0, annualAdd: val * 10000, label: `リース ${val.toLocaleString()}万円/年` };
+  }
+}
 
 // ===== 財務分析ヘルパー =====
 const MONTHLY_MULT = [1.30,1.20,0.90,0.80,0.80,0.90,1.40,1.50,1.10,0.90,1.00,1.20];
@@ -2888,6 +2936,39 @@ function renderSimulator(site) {
     <div style="font-size:11px;color:#475569;margin-bottom:8px">
       JEPXスプレッド参照：${area}エリア ${spread} 円/kWh
     </div>
+
+    <!-- 土地コスト -->
+    <div style="border-top:1px solid #334155;margin-top:12px;padding-top:12px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">💴 土地コスト</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button id="landModeBtn-buy" onclick="setLandMode('buy')"
+          style="flex:1;padding:6px;border-radius:6px;border:1px solid #334155;background:#0ea5e9;color:#fff;font-size:12px;cursor:pointer">購入</button>
+        <button id="landModeBtn-lease" onclick="setLandMode('lease')"
+          style="flex:1;padding:6px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#94a3b8;font-size:12px;cursor:pointer">リース</button>
+      </div>
+      <div id="landBuySection">
+        <div class="sim-input-row">
+          <label>土地取得価格 <span id="landPriceLabel">取得中...</span></label>
+          <input type="range" id="landPrice" min="0" max="5000" step="50" value="0"
+            style="width:100%;accent-color:#f59e0b;cursor:pointer" oninput="document.getElementById('landPriceLabel').textContent=Number(this.value).toLocaleString()+'万円';if(_currentSite)calcSim(_currentSite.id)">
+        </div>
+        <div style="font-size:10px;color:#475569;margin-bottom:4px">公示地価ベースで自動計算。実際の取得価格に合わせて調整可能。→ CAPEXに加算</div>
+      </div>
+      <div id="landLeaseSection" style="display:none">
+        <div class="sim-input-row">
+          <label>年間地代 <span id="landLeaseLabel">－万円/年</span></label>
+          <input type="range" id="landLease" min="0" max="2000" step="10" value="0"
+            style="width:100%;accent-color:#f59e0b;cursor:pointer" oninput="document.getElementById('landLeaseLabel').textContent=Number(this.value).toLocaleString()+'万円/年';if(_currentSite)calcSim(_currentSite.id)">
+        </div>
+        <div class="sim-input-row">
+          <label>リース率 <span id="leaseRateLabel">2.0%</span></label>
+          <input type="range" id="leaseRate" min="0.5" max="6" step="0.5" value="2"
+            style="width:100%;accent-color:#f59e0b;cursor:pointer" oninput="updateLeaseCalc()">
+        </div>
+        <div style="font-size:10px;color:#475569;margin-bottom:4px">公示地価×面積×リース率で自動計算。→ 年間コストに加算（IRR/NPVに影響）</div>
+      </div>
+    <div style="display:none">
+    </div>
     <div id="simResults${site.id}"></div>
   `;
 }
@@ -2940,16 +3021,19 @@ function calcSim(siteId) {
   const rev_jepx    = spread * cap_kwh * cycles * eff;
   const rev_cap     = capMktEligible ? power_kw * capPrice : 0;
   const rev_reg     = power_kw * 2000;
-  // 長期脱炭素電源オークション（第1回実績 約16,747円/kW/年・20年固定）
-  // ※容量市場との重複参加不可。どちらか一方を選択する想定。
   const longdec_price = 16747;
   const rev_longdec = capMktEligible ? power_kw * longdec_price : 0;
   const rev_total = rev_jepx + rev_cap + rev_reg;
 
-  // ── コスト計算 ──
-  const capex   = unit_man * 10000 * cap_kwh;
-  const om_cost = capex * 0.02;
-  const net_rev = rev_total - om_cost;
+  // ── 土地コスト ──
+  const landCost = getLandCost(cap_kwh);
+
+  // ── 設備+土地コスト計算 ──
+  const equipCapex = unit_man * 10000 * cap_kwh;
+  const capex   = equipCapex + landCost.capexAdd;  // 購入時は土地代をCAPEXに加算
+  const om_cost = equipCapex * 0.02;               // O&Mは設備費ベース
+  const annual_lease = landCost.annualAdd;          // リース時の年間地代
+  const net_rev = rev_total - om_cost - annual_lease;
   const payback = net_rev > 0 ? capex / net_rev : null;
 
   const fmt = n => n >= 1e8
@@ -2984,7 +3068,7 @@ function calcSim(siteId) {
       <div class="sim-result-card">
         <div class="label">純収益（O&M控除後）</div>
         <div class="value" style="color:#38bdf8">${fmt(net_rev)}</div>
-        <div class="sub">O&M ${fmt(om_cost)}/年</div>
+        <div class="sub">O&M ${fmt(om_cost)}/年${annual_lease>0?` + 地代${fmt(annual_lease)}/年`:''}</div>
       </div>
       <div class="sim-result-card">
         <div class="label">単純回収期間</div>
@@ -3057,9 +3141,11 @@ function buildReportData() {
   const rev_cap  = power_kw * 10000;
   const rev_reg  = power_kw * 2000;
   const rev_total = rev_jepx + rev_cap + rev_reg;
-  const capex    = unit_man * 10000 * cap_kwh;
-  const om_cost  = capex * 0.02;
-  const net_rev  = rev_total - om_cost;
+  const landCostR = getLandCost(cap_kwh);
+  const equipCapexR = unit_man * 10000 * cap_kwh;
+  const capex    = equipCapexR + landCostR.capexAdd;
+  const om_cost  = equipCapexR * 0.02;
+  const net_rev  = rev_total - om_cost - landCostR.annualAdd;
   const flows    = calc20YearCF(net_rev, capex);
   const irr      = calcIRR(flows);
   const npv8     = calcNPV(flows, 0.08);
