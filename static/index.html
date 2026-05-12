@@ -1836,9 +1836,11 @@ function switchTab(name) {
     b.style.borderBottomColor = isActive ? (name === "case" ? "#f59e0b" : "#38bdf8") : "transparent";
     b.style.color = isActive ? (name === "case" ? "#f59e0b" : "#38bdf8") : "#64748b";
   });
-  ["location","revenue","demand","risk"].forEach(tab => {
+  ["location","revenue","demand","risk","case"].forEach(tab => {
     const card = document.getElementById("scoreCard-" + tab);
-    if (card) card.style.borderColor = tab === name ? "#38bdf8" : "transparent";
+    if (!card) return;
+    const isActive = tab === name;
+    card.style.borderColor = isActive ? (tab === "case" ? "#f59e0b" : "#38bdf8") : "transparent";
   });
 }
 
@@ -1863,9 +1865,25 @@ function showDetail(site) {
   // ヘッダー
   document.getElementById("detailHeader").innerHTML = `
     <button class="detail-close" onclick="closeDetail()">✕</button>
-    <div class="score-label">総合スコア（重みづけ反映）</div>
-    <div class="score-big" id="overallScore" style="color:${sc}">${overall}<span style="font-size:18px;color:#64748b">/100</span></div>
-    <div style="color:${sc};font-size:12px;font-weight:600;margin-top:2px">${sl}</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div>
+        <div class="score-label">総合スコア（重みづけ反映）</div>
+        <div class="score-big" id="overallScore" style="color:${sc}">${overall}<span style="font-size:18px;color:#64748b">/100</span></div>
+        <div style="color:${sc};font-size:12px;font-weight:600;margin-top:2px">${sl}</div>
+      </div>
+      ${(() => {
+        const c = _caseMap[site.id];
+        const sColor = c ? {"発見":"#64748b","精査中":"#38bdf8","承認待ち":"#fbbf24","アプローチ中":"#4ade80","契約済":"#6ee7b7","見送り":"#475569"}[c.status]||"#64748b" : "#475569";
+        const sEmoji = c ? STATUS_EMOJI[c.status]||"📁" : "📁";
+        const sLabel = c ? c.status : "未登録";
+        return `<div id="scoreCard-case" onclick="switchTab('case')" class="case-only"
+          style="background:#0f172a;border-radius:8px;padding:10px 12px;text-align:center;cursor:pointer;border:1px solid transparent;transition:border-color 0.15s;min-width:54px">
+          <div style="font-size:22px;line-height:1">${sEmoji}</div>
+          <div style="font-size:9px;color:#64748b;margin-top:3px">案件</div>
+          <div style="font-size:9px;color:${sColor};margin-top:1px;font-weight:600">${sLabel}</div>
+        </div>`;
+      })()}
+    </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:10px">
       ${[["立地","catLocScore",scores.locationScore,"location"],
          ["収益","catRevScore",scores.revenueScore,"revenue"],
@@ -1879,20 +1897,11 @@ function showDetail(site) {
     </div>
     <div class="site-name" style="margin-top:10px">${site.name}</div>
     <div class="site-addr">📍 ${site.address}</div>
-    <button class="action-btn btn-primary" style="margin-top:10px" onclick="openExportModal(${site.id})">📤 案件化する</button>
+    <button class="action-btn btn-primary case-only" style="margin-top:10px" onclick="openExportModal(${site.id})">📤 案件化する</button>
   `;
 
   // ボディ：タブ構成
   document.getElementById("detailBody").innerHTML = `
-    <!-- タブナビ（案件管理タブは社内モードのみ表示） -->
-    <div style="display:flex;border-bottom:1px solid #334155;margin:0 -20px;padding:0 20px 0;gap:2px;overflow-x:auto">
-      <button class="tab-btn active" data-tab="location" onclick="switchTab('location')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid #38bdf8;color:#38bdf8;cursor:pointer">📍 立地</button>
-      <button class="tab-btn" data-tab="revenue" onclick="switchTab('revenue')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;cursor:pointer">💰 収益</button>
-      <button class="tab-btn" data-tab="demand" onclick="switchTab('demand')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;cursor:pointer">🏭 需要</button>
-      <button class="tab-btn" data-tab="risk" onclick="switchTab('risk')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;cursor:pointer">⚖️ 規制</button>
-      <button class="tab-btn case-only" data-tab="case" onclick="switchTab('case')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:#f59e0b;cursor:pointer">📁 案件</button>
-    </div>
-
     <!-- 概要・立地タブ -->
     <div id="tab-location" class="tab-content active">
       ${catScoreCard("立地スコア", scores.locationScore)}
@@ -3979,12 +3988,17 @@ function renderCaseTab(site) {
   ).join("");
 
   const notes = c?.notes || [];
+  const caseId = c?.id;
   const notesHtml = notes.length > 0
     ? [...notes].reverse().map(n => `
-        <div style="padding:6px 0;border-bottom:1px solid #1e293b;font-size:11px">
-          <span style="color:#475569">${new Date(n.timestamp).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
-          <span style="color:#94a3b8;margin:0 4px">${n.author}</span>
-          <span style="color:#cbd5e1">${n.text}</span>
+        <div style="padding:6px 0;border-bottom:1px solid #1e293b;font-size:11px;display:flex;align-items:flex-start;gap:6px">
+          <div style="flex:1">
+            <span style="color:#475569">${new Date(n.timestamp).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
+            <span style="color:#94a3b8;margin:0 4px">${n.author}</span>
+            <span style="color:#cbd5e1">${n.text}</span>
+          </div>
+          <span onclick="deleteNote(${site.id},'${n.timestamp}')"
+            style="color:#f87171;font-size:10px;cursor:pointer;flex-shrink:0;text-decoration:underline">削除</span>
         </div>`).join("")
     : `<div style="color:#475569;font-size:11px;padding:8px 0">メモなし</div>`;
 
@@ -4021,7 +4035,7 @@ function renderCaseTab(site) {
 
       <div style="margin-bottom:10px">
         <div style="font-size:10px;color:#64748b;margin-bottom:4px">担当</div>
-        <input id="assigneeInput-${site.id}" type="text" value="${c?.assignee||""}" placeholder="例: 副代表、田中（○○不動産）"
+        <input id="assigneeInput-${site.id}" type="text" value="${c?.assignee||""}" placeholder="例: 自社担当名 or パートナー会社名＋担当名"
           onblur="updateCaseField(${site.id},'assignee',this.value)"
           style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none">
       </div>
@@ -4054,8 +4068,10 @@ function renderCaseTab(site) {
       <!-- メモ -->
       <div style="font-size:10px;color:#64748b;margin-bottom:4px">メモ（活動ログ）</div>
       <div style="margin-bottom:6px">${quickNoteHtml}</div>
+      <div style="font-size:10px;color:#94a3b8;margin-bottom:4px">↑ ボタンを押すと下の入力欄に転記されます</div>
+      <div id="noteError-${site.id}" style="display:none;color:#f87171;font-size:10px;margin-bottom:4px"></div>
       <div style="display:flex;gap:6px;margin-bottom:8px">
-        <input id="noteInput-${site.id}" type="text" placeholder="メモを入力..."
+        <input id="noteInput-${site.id}" type="text" placeholder="メモを入力（保存ボタンで記録）"
           onkeydown="if(event.key==='Enter')addNote(${site.id})"
           style="flex:1;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none">
         <button onclick="addNote(${site.id})"
@@ -4077,21 +4093,52 @@ async function updateCaseField(siteId, field, value) {
 async function addNote(siteId) {
   const input = document.getElementById(`noteInput-${siteId}`);
   if (!input || !input.value.trim()) return;
+
+  // ③ 担当バリデーション
+  const assigneeInput = document.getElementById(`assigneeInput-${siteId}`);
+  const assignee = assigneeInput?.value.trim() || _caseMap[siteId]?.assignee || "";
+  if (!assignee) {
+    const errEl = document.getElementById(`noteError-${siteId}`);
+    if (errEl) { errEl.textContent = "担当を入力してから保存してください"; errEl.style.display = "block"; }
+    assigneeInput?.focus();
+    return;
+  }
+  const errEl = document.getElementById(`noteError-${siteId}`);
+  if (errEl) errEl.style.display = "none";
+
   try {
-    const updated = await saveCase(siteId, { add_note: input.value, author: "担当" });
+    // 担当が変更されていれば同時に保存
+    await saveCase(siteId, { add_note: input.value.trim(), author: assignee, assignee });
     input.value = "";
-    // メモ欄を更新
     const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
     if (site) refreshCaseTab(site);
   } catch(e) { alert("保存失敗: " + e.message); }
 }
 
-async function addQuickNote(siteId, text) {
+// ② クイックノートは入力欄への転記のみ（直接保存しない）
+function addQuickNote(siteId, text) {
+  const input = document.getElementById(`noteInput-${siteId}`);
+  if (input) { input.value = text; input.focus(); }
+}
+
+async function deleteNote(siteId, timestamp) {
+  // ④ 確認ダイアログ
+  if (!confirm("このメモを削除しますか？\n削除後は元に戻せません。")) return;
   try {
-    await saveCase(siteId, { add_note: text, author: "担当" });
+    const c = _caseMap[siteId];
+    if (!c) return;
+    await fetch(`${API_BASE}/cases/${c.id}`, {
+      method: "PATCH", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ delete_note_timestamp: timestamp })
+    });
+    const updated = await (await fetch(`${API_BASE}/cases/${c.id}/by-id`)).json().catch(() => null);
+    // ローカルのcacheも更新
+    const res = await fetch(`${API_BASE}/cases`);
+    const cases = await res.json();
+    cases.forEach(c2 => { _caseMap[c2.site_id] = c2; });
     const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
     if (site) refreshCaseTab(site);
-  } catch(e) { alert("保存失敗: " + e.message); }
+  } catch(e) { alert("削除失敗: " + e.message); }
 }
 
 function refreshCaseTab(site) {

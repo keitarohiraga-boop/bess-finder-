@@ -111,6 +111,12 @@ def update_case(case_id: int, body: dict, db: Session = Depends(get_db)):
         })
         case.notes = json.dumps(notes, ensure_ascii=False)
 
+    # メモ削除（タイムスタンプで特定）
+    if "delete_note_timestamp" in body:
+        notes = json.loads(case.notes or "[]")
+        notes = [n for n in notes if n.get("timestamp") != body["delete_note_timestamp"]]
+        case.notes = json.dumps(notes, ensure_ascii=False)
+
     case.updated_at = _now()
     db.commit()
     return _to_dict(case)
