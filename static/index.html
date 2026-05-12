@@ -621,10 +621,10 @@
       <div class="filter-group">
         <div class="filter-label"><span class="icon">🌾</span> 農地法・地目 <span class="tag">農地ナビ</span></div>
         <div class="toggle-group">
-          <button class="toggle-btn active" data-filter="landuse" data-val="non-farm">農地以外</button>
-          <button class="toggle-btn active" data-filter="landuse" data-val="class2-farm">第2種農地</button>
-          <button class="toggle-btn active" data-filter="landuse" data-val="class3-farm">第3種農地</button>
-          <button class="toggle-btn" data-filter="landuse" data-val="class1-farm">第1種農地</button>
+          <button class="toggle-btn active" data-filter="farm" data-val="non-farm">農地以外</button>
+          <button class="toggle-btn active" data-filter="farm" data-val="class2-farm">第2種農地</button>
+          <button class="toggle-btn active" data-filter="farm" data-val="class3-farm">第3種農地</button>
+          <button class="toggle-btn" data-filter="farm" data-val="class1-farm">第1種農地</button>
         </div>
       </div>
 
@@ -1083,8 +1083,9 @@ const SITES = [
 
 // ===== フィルター状態 =====
 let filters = {
-  landuse: new Set(["non-farm", "class2-farm", "class3-farm", "industrial", "quasi-industrial", "unzoned"]),
-  flood: new Set(["none", "low"]),
+  landuse: new Set(["industrial", "quasi-industrial", "unzoned"]),  // 用途地域
+  farm:    new Set(["non-farm", "class2-farm", "class3-farm"]),     // 農地法（独立フィルター）
+  flood:   new Set(["none", "low"]),
   substationMax: 3000,
   areaMin: 1000,
   slopeMax: 5,
@@ -1365,11 +1366,11 @@ function buildGeoJSON(sites) {
 
 // ===== フィルター判定 =====
 function isVisible(site) {
-  const luKey = site.farmClass || site.landuse;
-  if (!filters.landuse.has(luKey) && !filters.landuse.has(site.landuse)) {
-    if (site.farmClass && !filters.landuse.has(site.farmClass)) return false;
-    if (!site.farmClass && !filters.landuse.has(site.landuse)) return false;
-  }
+  // 用途地域フィルター（独立）
+  if (filters.landuse.size > 0 && !filters.landuse.has(site.landuse)) return false;
+  // 農地法フィルター（独立）：farm_classがあればそれで、なければ"non-farm"扱い
+  const farmKey = site.farmClass || "non-farm";
+  if (filters.farm.size > 0 && !filters.farm.has(farmKey)) return false;
   if (!filters.flood.has(site.flood)) return false;
   if (site.substationDist > filters.substationMax) return false;
   if (site.area < filters.areaMin) return false;
@@ -1386,6 +1387,7 @@ async function renderAll() {
     // APIからフィルター済みデータを取得
     const params = new URLSearchParams();
     filters.landuse.forEach(v => params.append("landuse", v));
+      filters.farm.forEach(v => params.append("farm", v));
     filters.flood.forEach(v => params.append("flood", v));
     params.set("substation_max", filters.substationMax);
     params.set("area_min", filters.areaMin);

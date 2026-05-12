@@ -52,21 +52,31 @@ def _attach_extras(site: models.Site, maps: dict) -> schemas.SiteOut:
 @router.get("", response_model=List[schemas.SiteOut])
 def list_sites(
     db: Session = Depends(get_db),
-    landuse: Optional[List[str]] = Query(default=None),
-    flood: Optional[List[str]] = Query(default=None),
+    landuse: Optional[List[str]] = Query(default=None),  # 用途地域フィルター
+    farm:    Optional[List[str]] = Query(default=None),   # 農地法フィルター（独立）
+    flood:   Optional[List[str]] = Query(default=None),
     substation_max: int = Query(default=5000, ge=0),
     area_min: float = Query(default=0, ge=0),
     slope_max: float = Query(default=15, ge=0),
 ):
     stmt = select(models.Site)
 
+    # 用途地域フィルター（site.landuse に対して適用）
     if landuse:
-        stmt = stmt.where(
-            or_(
-                models.Site.landuse.in_(landuse),
-                models.Site.farm_class.in_(landuse),
-            )
-        )
+        stmt = stmt.where(models.Site.landuse.in_(landuse))
+
+    # 農地法フィルター（site.farm_class に対して適用、non-farm は farm_class IS NULL を意味する）
+    if farm:
+        non_farm_selected = "non-farm" in farm
+        other_farm = [f for f in farm if f != "non-farm"]
+        from sqlalchemy import or_, null
+        conditions = []
+        if non_farm_selected:
+            conditions.append(models.Site.farm_class == None)   # noqa: E711
+        if other_farm:
+            conditions.append(models.Site.farm_class.in_(other_farm))
+        if conditions:
+            stmt = stmt.where(or_(*conditions))
     if flood:
         stmt = stmt.where(models.Site.flood.in_(flood))
 
