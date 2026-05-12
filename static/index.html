@@ -461,6 +461,49 @@
       header button[onclick="openEvalModal()"] { display: flex; font-size: 11px; }
     }
 
+    /* ===== iOS/Android 共通修正 ===== */
+    /* タッチ操作のハイライトを無効化 */
+    * { -webkit-tap-highlight-color: transparent; }
+
+    /* ボタン・インタラクティブ要素のタッチ改善 */
+    .toggle-btn, .tab-btn, .action-btn, .export-btn, .preset-btn {
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+      cursor: pointer;
+    }
+
+    /* iOSのスクロール慣性 */
+    .sidebar-scroll, .detail-panel, .site-list {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
+    /* スライダーのiOS対応 */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+    }
+
+    /* モーダル内スクロール（iOS Safari対応） */
+    .export-modal, .detail-panel, .sidebar {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Android Chromeのフォーカスリング調整 */
+    :focus { outline: 2px solid #38bdf8; outline-offset: 2px; }
+    :focus:not(:focus-visible) { outline: none; }
+
     /* ===== 収益シミュレーター ===== */
     .sim-input-row { margin-bottom: 10px; }
     .sim-input-row label { font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between; margin-bottom: 4px; }
@@ -587,10 +630,10 @@
       <div class="filter-group">
         <div class="filter-label"><span class="icon">🏗️</span> 用途地域 <span class="tag">国土数値情報</span></div>
         <div class="toggle-group">
-          <button class="toggle-btn active" data-filter="zone" data-val="industrial">工業・工業専用</button>
-          <button class="toggle-btn active" data-filter="zone" data-val="quasi-industrial">準工業</button>
-          <button class="toggle-btn active" data-filter="zone" data-val="unzoned">用途地域外</button>
-          <button class="toggle-btn" data-filter="zone" data-val="commercial">商業系</button>
+          <button class="toggle-btn active" data-filter="landuse" data-val="industrial">工業・工業専用</button>
+          <button class="toggle-btn active" data-filter="landuse" data-val="quasi-industrial">準工業</button>
+          <button class="toggle-btn active" data-filter="landuse" data-val="unzoned">用途地域外</button>
+          <button class="toggle-btn" data-filter="landuse" data-val="commercial">商業系</button>
         </div>
       </div>
 
