@@ -8,8 +8,10 @@ import math
 import os
 import urllib.request
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
 from shapely.geometry import Point, shape
+from app.database import get_db
 
 router = APIRouter(prefix="/reinfolib", tags=["reinfolib"])
 
@@ -157,67 +159,30 @@ def get_hazard(
     return result
 
 
-@router.get("/landprice", summary="地価公示データを取得")
+@router.get("/landprice", summary="地価公示データをDBキャッシュから取得")
 def get_landprice(
     lat: float = Query(...),
     lng: float = Query(...),
-    prefecture_code: str = Query(default=""),
-    year: int = Query(default=2025),
+    db: Session = Depends(get_db),
 ):
-    if not API_KEY:
-        raise HTTPException(status_code=503, detail="REINFOLIB_API_KEY が設定されていません")
+    from app import models as m
 
-    # 都道府県コードが未指定の場合は緯度経度から推定
-    if not prefecture_code:
-        prefecture_code = _guess_pref_code(lat, lng)
+    # ±0.3度以内の地価公示点を検索
+    candidates = db.query(m.LandPricePoint).filter(
+        m.LandPricePoint.lat.between(lat - 0.3, lat + 0.3),
+        m.LandPricePoint.lng.between(lng - 0.3, lng + 0.3),
+    ).all()
 
-    import gzip as gzip_mod, io as io_mod
-
-    all_records = []
-    for division in ["00", "05"]:  # 住宅地・商業地（工業地は公示対象外が多い）
-        try:
-            url = f"{BASE_URL}/XCT001?year={year}&area={prefecture_code}&division={division}"
-            req = urllib.request.Request(
-                url, headers={"Ocp-Apim-Subscription-Key": API_KEY}
-            )
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                raw = resp.read()
-            with gzip_mod.GzipFile(fileobj=io_mod.BytesIO(raw)) as gz:
-                text = gz.read().decode("utf-8", errors="replace")
-            data = json.loads(text)
-            all_records.extend(data.get("data", []))
-        except Exception:
-            continue
-
-    if not all_records:
+    if not candidates:
         return {"count": 0, "nearest": None}
 
-    # 座標キーを取得（"位置座標 緯度" / "位置座標 経度"）
-    LAT_KEY = next((k for k in all_records[0] if "緯度" in k), None)
-    LNG_KEY = next((k for k in all_records[0] if "経度" in k), None)
-    PRICE_KEY = next((k for k in all_records[0] if "㎡" in k or "公示価格" in k), None)
-    ADDR_KEY = next((k for k in all_records[0] if "住居表示" in k), None)
-    USE_KEY = next((k for k in all_records[0] if "用途区分" in k), None)
-
-    if not LAT_KEY or not LNG_KEY:
-        return {"count": len(all_records), "nearest": None}
-
-    # 最近傍を Haversine で検索
-    nearest = min(
-        all_records,
-        key=lambda r: haversine(
-            lat, lng,
-            float(r.get(LAT_KEY, 0) or 0),
-            float(r.get(LNG_KEY, 0) or 0)
-        )
-    )
-    price = nearest.get(PRICE_KEY)
+    nearest = min(candidates, key=lambda p: haversine(lat, lng, p.lat, p.lng))
     return {
-        "count": len(all_records),
+        "count": len(candidates),
         "nearest": {
-            "price_per_m2": int(price) if price else None,
-            "address": nearest.get(ADDR_KEY, ""),
-            "year": nearest.get("価格時点", str(year)),
-            "use_type": nearest.get(USE_KEY, ""),
+            "price_per_m2": nearest.price_per_m2,
+            "address": nearest.address,
+            "year": nearest.data_year,
+            "use_type": nearest.use_type,
         }
     }

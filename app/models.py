@@ -25,6 +25,19 @@ class Site(Base):
     lng = Column(Float)
 
 
+class LandPricePoint(Base):
+    __tablename__ = "land_price_points"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prefecture = Column(String, index=True)
+    lat = Column(Float, nullable=False)
+    lng = Column(Float, nullable=False)
+    price_per_m2 = Column(Integer)
+    use_type = Column(String)
+    address = Column(String)
+    data_year = Column(Integer)
+
+
 class BessFacility(Base):
     __tablename__ = "bess_facilities"
 
