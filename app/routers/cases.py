@@ -122,26 +122,3 @@ def update_case(case_id: int, body: dict, db: Session = Depends(get_db)):
     return _to_dict(case)
 
 
-@router.post("/validate-url", summary="SlackスレッドURLの疎通確認")
-def validate_slack_url(body: dict):
-    """URLフォーマット検証 + HEADリクエストで疎通確認"""
-    url = body.get("url", "").strip()
-
-    # フォーマット検証
-    import re
-    pattern = r"https://[a-zA-Z0-9\-]+\.slack\.com/archives/[A-Z0-9]+/p[0-9]+"
-    if not re.match(pattern, url):
-        return {"valid": False, "reason": "Slack スレッドURLの形式が正しくありません（例: https://xxx.slack.com/archives/C.../p...）"}
-
-    # 疎通確認（SlackはログインなしでもリダイレクトするためHTTP 3xxを許容）
-    try:
-        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            return {"valid": True, "status_code": resp.status}
-    except urllib.error.HTTPError as e:
-        # 401/403はSlack認証が必要なだけでURLは有効
-        if e.code in (401, 403):
-            return {"valid": True, "status_code": e.code}
-        return {"valid": False, "reason": f"URLアクセスエラー: HTTP {e.code}"}
-    except Exception as e:
-        return {"valid": False, "reason": f"接続エラー: {str(e)}"}

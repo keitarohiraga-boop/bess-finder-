@@ -4040,30 +4040,33 @@ function renderCaseTab(site) {
           style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none">
       </div>
 
-      <!-- 承認依頼セクション -->
-      ${c?.status === "精査中" ? `
-      <div style="background:#0f172a;border:1px solid #f59e0b;border-radius:8px;padding:10px;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:600;color:#fbbf24;margin-bottom:6px">⏳ 承認依頼（Slackスレッド連携）</div>
-        <input id="slackUrlInput-${site.id}" type="text" placeholder="https://xxx.slack.com/archives/C.../p..."
-          style="width:100%;background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:11px;outline:none;margin-bottom:6px">
-        <button onclick="requestApproval(${site.id})"
-          style="width:100%;padding:7px;background:#92400e;border:1px solid #f59e0b;color:#fbbf24;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
-          📤 社長に承認依頼（SlackURL確認後テキスト生成）
-        </button>
-      </div>` : ""}
-
-      <!-- 承認ボタン（承認待ち時） -->
+      <!-- 承認待ち：定型文とコピーボタン表示 -->
       ${isApprovalPending ? `
+      <div style="background:#0f172a;border:1px solid #f59e0b;border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:#fbbf24;margin-bottom:8px">⏳ 承認依頼メッセージ</div>
+        <div style="font-size:10px;color:#64748b;margin-bottom:6px">
+          以下をコピーして
+          <a href="https://naturalborn.slack.com/archives/C09STV952MV" target="_blank" style="color:#38bdf8">Slackチャンネル</a>
+          に貼り付けてください
+        </div>
+        <div id="approvalMsgBox-${site.id}"
+          style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;font-size:11px;color:#cbd5e1;white-space:pre-wrap;line-height:1.7;margin-bottom:8px">${generateApprovalMessage(site)}</div>
+        <button onclick="copyApprovalMessage(${site.id})"
+          style="width:100%;padding:7px;background:#92400e;border:1px solid #f59e0b;color:#fbbf24;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
+          📋 メッセージをコピー
+        </button>
+      </div>
+      <!-- 承認ボタン（承認待ち時） -->
       <div style="background:#0f172a;border:1px solid #4ade80;border-radius:8px;padding:10px;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:600;color:#4ade80;margin-bottom:4px">✅ 承認確認</div>
-        ${slackUrl ? `<a href="${slackUrl}" target="_blank" style="display:block;font-size:10px;color:#38bdf8;margin-bottom:6px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap">💬 Slackスレッドを見る →</a>` : ""}
+        <div style="font-size:11px;font-weight:600;color:#4ade80;margin-bottom:6px">✅ 承認 / 見送り</div>
         <div style="display:flex;gap:6px">
           <button onclick="approveCase(${site.id})"
             style="flex:1;padding:7px;background:#14532d;border:1px solid #4ade80;color:#4ade80;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">✅ Go承認</button>
           <button onclick="rejectCase(${site.id})"
             style="flex:1;padding:7px;background:#450a0a;border:1px solid #f87171;color:#f87171;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">❌ 見送り</button>
         </div>
-      </div>` : ""}
+      </div>
+      ` : ""}
 
       <!-- メモ -->
       <div style="font-size:10px;color:#64748b;margin-bottom:4px">メモ（活動ログ）</div>
@@ -4082,6 +4085,40 @@ function renderCaseTab(site) {
   `;
 }
 
+function generateApprovalMessage(site) {
+  const scores = calcCategoryScores(site, _currentHazard);
+  const overall = calcOverallScore(scores);
+  const c = _caseMap[site.id];
+  const assignee = c?.assignee || "担当";
+  const caseType = c?.case_type === "パートナー依頼" ? `パートナー依頼（${c?.partner_name || ""}）` : "自社";
+  return `📋 BESS候補地 承認依頼
+
+候補地: ${site.name}
+所在: ${site.address}
+種別: ${caseType} | 担当: ${assignee}
+
+▶ スコア: ${overall}点
+  立地 ${scores.locationScore} / 収益 ${scores.revenueScore} / 需要 ${scores.demandScore} / 規制 ${scores.riskScore}
+
+▶ 主要指標
+  変電所距離: ${site.substationDist}m
+  面積: ${site.area.toLocaleString()}㎡
+  農地規制: ${site.farmClass ? site.farmClass : "農地なし"}
+  洪水リスク: ${site.floodLabel || "－"}
+
+アプリで詳細確認・承認をお願いします:
+https://bess-finder-production.up.railway.app/`;
+}
+
+function copyApprovalMessage(siteId) {
+  const el = document.getElementById(`approvalMsgBox-${siteId}`);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const btn = el.nextElementSibling;
+    if (btn) { btn.textContent = "✅ コピー完了！"; setTimeout(() => btn.textContent = "📋 メッセージをコピー", 2000); }
+  });
+}
+
 async function updateCaseField(siteId, field, value) {
   try {
     await saveCase(siteId, { [field]: value });
@@ -4094,21 +4131,31 @@ async function addNote(siteId) {
   const input = document.getElementById(`noteInput-${siteId}`);
   if (!input || !input.value.trim()) return;
 
-  // ③ 担当バリデーション
+  // ③ 担当バリデーション（case_typeに応じて変化）
+  const c = _caseMap[siteId];
+  const caseType = document.getElementById(`caseTypeSelect-${siteId}`)?.value || c?.case_type || "自社";
   const assigneeInput = document.getElementById(`assigneeInput-${siteId}`);
-  const assignee = assigneeInput?.value.trim() || _caseMap[siteId]?.assignee || "";
+  const partnerInput  = document.getElementById(`partnerInput-${siteId}`);
+  const assignee = assigneeInput?.value.trim() || c?.assignee || "";
+  const partner  = partnerInput?.value.trim()  || c?.partner_name || "";
+  const errEl = document.getElementById(`noteError-${siteId}`);
+
   if (!assignee) {
-    const errEl = document.getElementById(`noteError-${siteId}`);
-    if (errEl) { errEl.textContent = "担当を入力してから保存してください"; errEl.style.display = "block"; }
+    if (errEl) { errEl.textContent = "担当名を入力してから保存してください"; errEl.style.display = "block"; }
     assigneeInput?.focus();
     return;
   }
-  const errEl = document.getElementById(`noteError-${siteId}`);
+  if (caseType === "パートナー依頼" && !partner) {
+    if (errEl) { errEl.textContent = "パートナー会社名を入力してから保存してください"; errEl.style.display = "block"; }
+    partnerInput?.focus();
+    return;
+  }
   if (errEl) errEl.style.display = "none";
 
   try {
-    // 担当が変更されていれば同時に保存
-    await saveCase(siteId, { add_note: input.value.trim(), author: assignee, assignee });
+    const updates = { add_note: input.value.trim(), author: assignee, assignee };
+    if (caseType === "パートナー依頼") updates.partner_name = partner;
+    await saveCase(siteId, updates);
     input.value = "";
     const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
     if (site) refreshCaseTab(site);
@@ -4146,47 +4193,6 @@ function refreshCaseTab(site) {
   if (el) el.innerHTML = renderCaseTab(site);
 }
 
-async function requestApproval(siteId) {
-  const urlInput = document.getElementById(`slackUrlInput-${siteId}`);
-  const url = urlInput?.value.trim();
-  if (!url) { alert("SlackスレッドURLを入力してください"); return; }
-
-  // URL検証
-  const btn = event.target;
-  btn.textContent = "確認中..."; btn.disabled = true;
-  const result = await validateSlackUrl(url);
-  btn.disabled = false;
-
-  if (!result.valid) {
-    alert("URLが無効です: " + result.reason);
-    btn.textContent = "📤 社長に承認依頼（SlackURL確認後テキスト生成）";
-    return;
-  }
-
-  // ステータス更新
-  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
-  await saveCase(siteId, { status: "承認待ち", slack_thread_url: url });
-
-  // Slack貼り付けテキスト生成
-  const scores = calcCategoryScores(site, _currentHazard);
-  const overall = calcOverallScore(scores);
-  const text = `📋 BESS案件 承認依頼
-
-候補地: ${site.name}
-スコア: ${overall}点（立地:${scores.locationScore} 収益:${scores.revenueScore} 需要:${scores.demandScore} 規制:${scores.riskScore}）
-変電所距離: ${site.substationDist}m | 面積: ${site.area.toLocaleString()}㎡
-
-アプリで承認をお願いします:
-${window.location.href}
-
-このスレッドに紐付けています。ご確認の上 Go/見送りをアプリ上でお願いします。`;
-
-  navigator.clipboard.writeText(text).then(() => {
-    alert("✅ URLを確認しました。\n承認依頼テキストをクリップボードにコピーしました。\nSlackスレッドに貼り付けてください。");
-  });
-  renderAll();
-  refreshCaseTab(site);
-}
 
 async function approveCase(siteId) {
   if (!confirm("このBESS候補地へのアプローチをGo承認しますか？")) return;
