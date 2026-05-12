@@ -4191,23 +4191,24 @@ function addQuickNote(siteId, text) {
 }
 
 async function deleteNote(siteId, origIdx) {
-  // ④ 確認ダイアログ
   if (!confirm("このメモを削除しますか？\n削除後は元に戻せません。")) return;
   try {
     const c = _caseMap[siteId];
     if (!c) return;
-    await fetch(`${API_BASE}/cases/${c.id}`, {
+
+    const res = await fetch(`${API_BASE}/cases/${c.id}`, {
       method: "PATCH", headers: {"Content-Type":"application/json"},
       body: JSON.stringify({ delete_note_index: origIdx })
     });
-    const updated = await (await fetch(`${API_BASE}/cases/${c.id}/by-id`)).json().catch(() => null);
-    // ローカルのcacheも更新
-    const res = await fetch(`${API_BASE}/cases`);
-    const cases = await res.json();
-    cases.forEach(c2 => { _caseMap[c2.site_id] = c2; });
+    if (!res.ok) throw new Error(`削除失敗: HTTP ${res.status}`);
+
+    // PATCHレスポンスで直接キャッシュを更新（再取得しない）
+    const updated = await res.json();
+    _caseMap[siteId] = updated;
+
     const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
     if (site) refreshCaseTab(site);
-  } catch(e) { alert("削除失敗: " + e.message); }
+  } catch(e) { alert(e.message); }
 }
 
 function refreshCaseTab(site) {
