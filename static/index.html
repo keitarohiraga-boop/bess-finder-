@@ -809,6 +809,118 @@
           ※ J-SHIS地震ハザードは候補地クリック時にリアルタイム取得。その他は定期的にデータを更新。<br>
           ※ 農地データ（WAGRI）は申請中。取得次第、実データに切り替え予定。
         </div>
+
+        <!-- スコア計算基準 -->
+        <div style="margin-top:24px;border-top:1px solid #334155;padding-top:20px">
+          <div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px">📊 スコア計算基準</div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:14px">各カテゴリのスコアがどのように算出されるかを示します。重みは⚙️重みづけパネルで変更可能です。</div>
+
+          <!-- アコーディオン共通スタイル -->
+          <style>
+            .score-accordion { border:1px solid #334155; border-radius:8px; margin-bottom:8px; overflow:hidden; }
+            .score-accordion summary { padding:12px 16px; cursor:pointer; font-size:13px; font-weight:600; color:#e2e8f0; background:#0f172a; display:flex; justify-content:space-between; align-items:center; list-style:none; }
+            .score-accordion summary::-webkit-details-marker { display:none; }
+            .score-accordion[open] summary { border-bottom:1px solid #334155; }
+            .score-accordion .acc-body { padding:12px 16px; background:#0f172a22; font-size:11px; }
+            .score-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #1e293b; }
+            .score-row:last-child { border-bottom:none; }
+            .score-row .cond { color:#94a3b8; flex:1; }
+            .score-row .pts  { font-weight:700; min-width:60px; text-align:right; }
+            .score-sub { font-size:10px; color:#475569; margin:6px 0 8px; line-height:1.6; }
+            .score-weight { font-size:10px; color:#38bdf8; margin-bottom:8px; }
+          </style>
+
+          <!-- 立地スコア -->
+          <details class="score-accordion">
+            <summary>📍 立地スコア <span style="font-size:11px;color:#64748b">デフォルト重み 30%</span></summary>
+            <div class="acc-body">
+              <div class="score-weight">計算式: 系統連系適合性 × 60% ＋ 立地条件（面積） × 40%</div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">系統連系適合性（変電所距離）</div>
+              <div class="score-sub">スコア = max(0, 100 − 距離(m) ÷ 50)　※連続値</div>
+              <div class="score-row"><span class="cond">変電所 300m 未満</span><span class="pts" style="color:#4ade80">94点〜</span></div>
+              <div class="score-row"><span class="cond">変電所 700m 未満</span><span class="pts" style="color:#4ade80">86点〜</span></div>
+              <div class="score-row"><span class="cond">変電所 1,500m 未満</span><span class="pts" style="color:#fbbf24">70点〜</span></div>
+              <div class="score-row"><span class="cond">変電所 3,000m 未満</span><span class="pts" style="color:#fbbf24">40点〜</span></div>
+              <div class="score-row"><span class="cond">変電所 5,000m 以上</span><span class="pts" style="color:#f87171">0点</span></div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">立地条件（面積）</div>
+              <div class="score-sub">スコア = min(100, 面積㎡ ÷ 100)　※連続値</div>
+              <div class="score-row"><span class="cond">10,000㎡ 以上</span><span class="pts" style="color:#4ade80">100点</span></div>
+              <div class="score-row"><span class="cond">5,000㎡</span><span class="pts" style="color:#4ade80">50点</span></div>
+              <div class="score-row"><span class="cond">1,000㎡</span><span class="pts" style="color:#fbbf24">10点</span></div>
+            </div>
+          </details>
+
+          <!-- 収益スコア -->
+          <details class="score-accordion">
+            <summary>💰 収益スコア <span style="font-size:11px;color:#64748b">デフォルト重み 40%</span></summary>
+            <div class="acc-body">
+              <div class="score-weight">計算式: JEPX×35% ＋ 出力制御×25% ＋ FIT集積×20% ＋ 停電バックアップ×20%</div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">JEPX収益性スコア（エリア別）</div>
+              <div class="score-row"><span class="cond">九州エリア</span><span class="pts" style="color:#4ade80">88点</span></div>
+              <div class="score-row"><span class="cond">関西エリア</span><span class="pts" style="color:#4ade80">74点</span></div>
+              <div class="score-row"><span class="cond">四国エリア</span><span class="pts" style="color:#4ade80">68点</span></div>
+              <div class="score-row"><span class="cond">東京エリア</span><span class="pts" style="color:#fbbf24">67点</span></div>
+              <div class="score-row"><span class="cond">中部エリア</span><span class="pts" style="color:#fbbf24">62点</span></div>
+              <div class="score-row"><span class="cond">東北エリア</span><span class="pts" style="color:#fbbf24">58点</span></div>
+              <div class="score-row"><span class="cond">北海道エリア</span><span class="pts" style="color:#fbbf24">48点</span></div>
+              <div class="score-row"><span class="cond">北陸エリア</span><span class="pts" style="color:#f87171">44点</span></div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">出力制御ポテンシャルスコア（エリア別）</div>
+              <div class="score-row"><span class="cond">九州エリア</span><span class="pts" style="color:#4ade80">100点</span></div>
+              <div class="score-row"><span class="cond">北海道エリア</span><span class="pts" style="color:#4ade80">88点</span></div>
+              <div class="score-row"><span class="cond">東北エリア</span><span class="pts" style="color:#4ade80">68点</span></div>
+              <div class="score-row"><span class="cond">四国エリア</span><span class="pts" style="color:#fbbf24">53点</span></div>
+              <div class="score-row"><span class="cond">中国エリア</span><span class="pts" style="color:#fbbf24">42点</span></div>
+              <div class="score-row"><span class="cond">北陸エリア</span><span class="pts" style="color:#fbbf24">63点</span></div>
+              <div class="score-row"><span class="cond">東京・関西・中部エリア</span><span class="pts" style="color:#f87171">20〜33点</span></div>
+            </div>
+          </details>
+
+          <!-- 需要スコア -->
+          <details class="score-accordion">
+            <summary>🏭 需要スコア <span style="font-size:11px;color:#64748b">デフォルト重み 15%</span></summary>
+            <div class="acc-body">
+              <div class="score-weight">計算式: 太陽光ポテンシャル×40% ＋ EV・V2G需要×60%</div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">太陽光スコア（都道府県別・NEDO/JMA実績）</div>
+              <div class="score-row"><span class="cond">沖縄県（5.1 kWh/m²/日）</span><span class="pts" style="color:#4ade80">100点</span></div>
+              <div class="score-row"><span class="cond">宮崎・鹿児島県（4.7〜4.8）</span><span class="pts" style="color:#4ade80">76〜82点</span></div>
+              <div class="score-row"><span class="cond">九州・東海・近畿（4.2〜4.5）</span><span class="pts" style="color:#fbbf24">47〜65点</span></div>
+              <div class="score-row"><span class="cond">東北・北陸（3.4〜3.8）</span><span class="pts" style="color:#f87171">0〜24点</span></div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">EV・V2G需要スコア（都道府県別）</div>
+              <div class="score-row"><span class="cond">東京都（普及率3.5%・8.5万台）</span><span class="pts" style="color:#4ade80">43点</span></div>
+              <div class="score-row"><span class="cond">愛知・神奈川県（2.8〜3.0%）</span><span class="pts" style="color:#fbbf24">34〜37点</span></div>
+              <div class="score-row"><span class="cond">主要都市圏（2〜2.5%）</span><span class="pts" style="color:#fbbf24">25〜31点</span></div>
+              <div class="score-row"><span class="cond">地方（1〜1.5%）</span><span class="pts" style="color:#f87171">13〜18点</span></div>
+            </div>
+          </details>
+
+          <!-- 規制リスクスコア -->
+          <details class="score-accordion">
+            <summary>⚖️ 規制リスクスコア <span style="font-size:11px;color:#64748b">デフォルト重み 15%</span></summary>
+            <div class="acc-body">
+              <div class="score-weight">計算式: 農地規制 × 50% ＋ 洪水リスク × 50%（J-SHIS地盤データは個別表示のみ）</div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">農地規制スコア</div>
+              <div class="score-row"><span class="cond">農地なし（転用不要）</span><span class="pts" style="color:#4ade80">95点</span></div>
+              <div class="score-row"><span class="cond">第3種農地（転用可）</span><span class="pts" style="color:#fbbf24">70点</span></div>
+              <div class="score-row"><span class="cond">第2種農地（要協議）</span><span class="pts" style="color:#fbbf24">45点</span></div>
+              <div class="score-row"><span class="cond">第1種農地（転用不可）</span><span class="pts" style="color:#f87171">10点</span></div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">洪水リスクスコア（国土交通省 不動産情報ライブラリ）</div>
+              <div class="score-row"><span class="cond">浸水リスクなし</span><span class="pts" style="color:#4ade80">100点</span></div>
+              <div class="score-row"><span class="cond">浸水想定あり（低・0.5m未満）</span><span class="pts" style="color:#fbbf24">70点</span></div>
+              <div class="score-row"><span class="cond">浸水想定あり（中・高）</span><span class="pts" style="color:#f87171">30点</span></div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">地震・地盤リスク（J-SHIS）※総合スコアには未反映・個別タブで表示</div>
+              <div class="score-row"><span class="cond">ARV ≤ 1.5（岩盤・硬質地盤）</span><span class="pts" style="color:#4ade80">92点</span></div>
+              <div class="score-row"><span class="cond">ARV ≤ 2.5（台地・段丘）</span><span class="pts" style="color:#4ade80">78点</span></div>
+              <div class="score-row"><span class="cond">ARV ≤ 3.5（沖積地盤）</span><span class="pts" style="color:#fbbf24">58点</span></div>
+              <div class="score-row"><span class="cond">ARV ≤ 5.0（液状化リスクあり）</span><span class="pts" style="color:#f87171">38点</span></div>
+              <div class="score-row"><span class="cond">ARV > 5.0（埋立地・後背湿地）</span><span class="pts" style="color:#f87171">18点</span></div>
+            </div>
+          </details>
+
+          <div style="font-size:10px;color:#475569;margin-top:10px;line-height:1.7">
+            ※ 各スコアは0〜100点。総合スコア = 各カテゴリスコア × 重み ÷ 重み合計。<br>
+            ※ 重みは⚙️重みづけパネルでリアルタイムに変更できます（デフォルト: 立地30%・収益40%・需要15%・規制15%）。
+          </div>
+        </div>
       </div>
     </div>
 
