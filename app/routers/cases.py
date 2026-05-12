@@ -111,10 +111,12 @@ def update_case(case_id: int, body: dict, db: Session = Depends(get_db)):
         })
         case.notes = json.dumps(notes, ensure_ascii=False)
 
-    # メモ削除（タイムスタンプで特定）
-    if "delete_note_timestamp" in body:
+    # メモ削除（元配列のインデックスで特定）
+    if "delete_note_index" in body:
         notes = json.loads(case.notes or "[]")
-        notes = [n for n in notes if n.get("timestamp") != body["delete_note_timestamp"]]
+        idx = int(body["delete_note_index"])
+        if 0 <= idx < len(notes):
+            del notes[idx]
         case.notes = json.dumps(notes, ensure_ascii=False)
 
     case.updated_at = _now()

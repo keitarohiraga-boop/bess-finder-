@@ -3988,18 +3988,21 @@ function renderCaseTab(site) {
   ).join("");
 
   const notes = c?.notes || [];
-  const caseId = c?.id;
+  // 削除はタイムスタンプではなく元配列のインデックスで特定（特殊文字によるHTML属性崩壊を回避）
   const notesHtml = notes.length > 0
-    ? [...notes].reverse().map(n => `
+    ? [...notes].reverse().map((n, revIdx) => {
+        const origIdx = notes.length - 1 - revIdx; // 元配列のインデックス
+        return `
         <div style="padding:6px 0;border-bottom:1px solid #1e293b;font-size:11px;display:flex;align-items:flex-start;gap:6px">
           <div style="flex:1">
             <span style="color:#475569">${new Date(n.timestamp).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
             <span style="color:#94a3b8;margin:0 4px">${n.author}</span>
             <span style="color:#cbd5e1">${n.text}</span>
           </div>
-          <span onclick="deleteNote(${site.id},'${n.timestamp}')"
+          <span onclick="deleteNote(${site.id},${origIdx})"
             style="color:#f87171;font-size:10px;cursor:pointer;flex-shrink:0;text-decoration:underline">削除</span>
-        </div>`).join("")
+        </div>`;
+      }).join("")
     : `<div style="color:#475569;font-size:11px;padding:8px 0">メモなし</div>`;
 
   const quickNoteHtml = QUICK_NOTES.map(n =>
@@ -4187,7 +4190,7 @@ function addQuickNote(siteId, text) {
   if (input) { input.value = text; input.focus(); }
 }
 
-async function deleteNote(siteId, timestamp) {
+async function deleteNote(siteId, origIdx) {
   // ④ 確認ダイアログ
   if (!confirm("このメモを削除しますか？\n削除後は元に戻せません。")) return;
   try {
@@ -4195,7 +4198,7 @@ async function deleteNote(siteId, timestamp) {
     if (!c) return;
     await fetch(`${API_BASE}/cases/${c.id}`, {
       method: "PATCH", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ delete_note_timestamp: timestamp })
+      body: JSON.stringify({ delete_note_index: origIdx })
     });
     const updated = await (await fetch(`${API_BASE}/cases/${c.id}/by-id`)).json().catch(() => null);
     // ローカルのcacheも更新
