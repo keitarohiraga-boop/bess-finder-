@@ -1736,6 +1736,8 @@ function showDetail(site) {
       <div class="detail-row"><span class="key">土壌・地盤</span><span class="val">${site.soilRisk}</span></div>
       <div class="section-title" style="margin-top:14px">🌏 地震・地盤リスク（J-SHIS）</div>
       <div id="earthquakeHazard" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
+      <div class="section-title" style="margin-top:14px">🌊 洪水・土砂ハザード（実データ）</div>
+      <div id="floodHazardReal" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
       <div class="section-title" style="margin-top:14px">📋 申請フロー自動判定</div>
       ${renderPermitFlow(site)}
       <div style="padding:0 0 12px">
@@ -1759,6 +1761,7 @@ function showDetail(site) {
   setTimeout(() => calcSim(site.id), 30);
   loadDemandFacilities(site.lat, site.lng, "demandFacilities");
   loadEarthquakeHazard(site);
+  loadFloodHazard(site.lat, site.lng, "floodHazardReal");
 }
 
 // ===== 申請フロー生成 =====
@@ -2409,6 +2412,36 @@ function renderDemand(el, d) {
     ${nearestRows}
     <div style="font-size:10px;color:#475569;margin-top:6px">出典: OpenStreetMap contributors</div>
   `;
+}
+
+// ===== 洪水・土砂ハザード取得（不動産情報ライブラリ） =====
+async function loadFloodHazard(lat, lng, containerId) {
+  if (!USE_API) return;
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  try {
+    const res = await fetch(`${API_BASE}/reinfolib/hazard?lat=${lat}&lng=${lng}`);
+    if (!res.ok) return;
+    const d = await res.json();
+    const flood = d.flood;
+    const slide = d.landslide;
+    const floodColor = flood.risk==='none'?'#4ade80':flood.risk==='low'?'#fbbf24':'#f87171';
+    const slideColor = slide.risk==='none'?'#4ade80':'#f87171';
+    el.innerHTML = `
+      <div class="detail-row">
+        <span class="key">洪水浸水想定</span>
+        <span class="val" style="color:${floodColor}">${flood.risk_label}</span>
+      </div>
+      ${flood.rivers.length>0?`<div class="detail-row"><span class="key" style="font-size:10px">対象河川</span><span class="val" style="font-size:11px">${flood.rivers.slice(0,3).join('・')}</span></div>`:''}
+      <div class="detail-row">
+        <span class="key">土砂災害警戒</span>
+        <span class="val" style="color:${slideColor}">${slide.risk_label}</span>
+      </div>
+      <div style="font-size:10px;color:#475569;margin-top:4px">出典: 国土交通省 不動産情報ライブラリ（実データ）</div>
+    `;
+  } catch (e) {
+    console.warn("洪水ハザード取得失敗:", e);
+  }
 }
 
 // ===== 地震ハザード取得（J-SHIS直接呼び出し） =====

@@ -14,18 +14,6 @@ from shapely.geometry import Point, shape
 router = APIRouter(prefix="/reinfolib", tags=["reinfolib"])
 
 API_KEY = os.getenv("REINFOLIB_API_KEY", "")
-
-
-@router.get("/debug-key")
-def debug_key():
-    import os
-    key = os.getenv("REINFOLIB_API_KEY", "")
-    return {
-        "key_set": bool(key),
-        "key_length": len(key),
-        "key_first4": key[:4] if key else "",
-        "all_env_keys": [k for k in os.environ if "REINFOLIB" in k or "API" in k]
-    }
 BASE_URL = "https://www.reinfolib.mlit.go.jp/ex-api/external"
 
 
