@@ -1692,7 +1692,7 @@ function showDetail(site) {
       ${(() => {
         const c = estimateConnectionCost(site.substationDist);
         const range = c.max ? `約${c.min.toLocaleString()}万〜${c.max.toLocaleString()}万円` : `${c.min.toLocaleString()}万円以上`;
-        const color = site.substationDist < 1000 ? 'ok' : site.substationDist < 2500 ? 'warn' : 'ng';
+        const color = c.risk;
         return `<div class="detail-row"><span class="key">接続費用（概算）</span><span class="val ${color}">${range}</span></div>
         <div class="detail-row"><span class="key" style="font-size:10px;color:#475569">└ 連系電圧想定</span><span class="val" style="font-size:11px">${c.voltage}</span></div>
         ${c.note ? `<div style="font-size:10px;color:#475569;padding:2px 0 4px">　${c.note}</div>` : ''}`;
@@ -1822,36 +1822,25 @@ function showDetail(site) {
 // 出典: 経済産業省「再生可能エネルギー発電設備の系統連系に係る検討に関するガイドライン」
 //       電力広域的運営推進機関（OCCTO）公表資料・各電力会社の接続検討標準値
 function estimateConnectionCost(distM) {
+  // risk は表示される費用帯に基づいて決定（距離の閾値とは独立）
   if (distM < 300) {
-    return {
-      min: 30, max: 150, voltage: '高圧（6.6kV）',
-      note: '既存設備への近距離接続。低コストが期待できる。',
-    };
+    return { min: 30,   max: 150,   voltage: '高圧（6.6kV）',         risk: 'ok',
+      note: '既存設備への近距離接続。低コストが期待できる。' };
   } else if (distM < 700) {
-    return {
-      min: 100, max: 400, voltage: '高圧（6.6kV）',
-      note: '既存電柱を活用した接続が基本。',
-    };
+    return { min: 100,  max: 400,   voltage: '高圧（6.6kV）',         risk: 'ok',
+      note: '既存電柱を活用した接続が基本。' };
   } else if (distM < 1500) {
-    return {
-      min: 300, max: 1000, voltage: '高圧（6.6kV）',
-      note: '電柱新設が必要な場合あり。',
-    };
+    return { min: 300,  max: 1000,  voltage: '高圧（6.6kV）',         risk: 'warn',
+      note: '電柱新設が必要な場合あり。' };
   } else if (distM < 3000) {
-    return {
-      min: 800, max: 5000, voltage: '高圧〜特別高圧（22kV）',
-      note: '新規回線工事が必要。特別高圧連系への切り替えを検討。',
-    };
+    return { min: 800,  max: 5000,  voltage: '高圧〜特別高圧（22kV）', risk: 'warn',
+      note: '新規回線工事が必要。特別高圧連系への切り替えを検討。' };
   } else if (distM < 5000) {
-    return {
-      min: 3000, max: 20000, voltage: '特別高圧（22〜66kV）',
-      note: '大規模工事。電力会社との個別協議が必須。',
-    };
+    return { min: 3000, max: 20000, voltage: '特別高圧（22〜66kV）',  risk: 'ng',
+      note: '大規模工事。電力会社との個別協議が必須。' };
   } else {
-    return {
-      min: 10000, max: null, voltage: '特別高圧（66kV以上）',
-      note: '大規模・長距離工事。数億円以上になる可能性あり。個別検討必須。',
-    };
+    return { min: 10000, max: null, voltage: '特別高圧（66kV以上）',  risk: 'ng',
+      note: '大規模・長距離工事。数億円以上になる可能性あり。個別検討必須。' };
   }
 }
 
@@ -2385,7 +2374,7 @@ function showEvalResult(d, hazard, title, area_m2) {
 
     ${d.curtailment ? `
     <div class="section-title" style="margin-top:14px">🔌 再エネ出力制御</div>
-    <div class="detail-row"><span class="key">${tip("出力制御率（2023年度）","出力制御率")}</span><span class="val ${d.curtailment.rate_2023 > 3 ? 'ok' : ''}">${d.curtailment.rate_2023}%</span></div>
+    <div class="detail-row"><span class="key">${tip("出力制御率（2023年度）","出力制御率")}</span><span class="val ${d.curtailment.rate_2023 > 3 ? 'ok' : d.curtailment.rate_2023 > 1 ? 'warn' : ''}">${d.curtailment.rate_2023}%</span></div>
     <div class="detail-row"><span class="key">BESSニーズスコア</span><span class="val ok">${d.curtailment.curtailment_score} / 100</span></div>` : ""}
 
     ${hazard ? `
@@ -2577,7 +2566,7 @@ async function loadLandPrice(lat, lng, containerId) {
   const el = document.getElementById(containerId);
   if (!el) return;
   try {
-    const res = await fetch(`${API_BASE}/reinfolib/landprice?lat=${lat}&lng=${lng}`);
+    const res = await fetch(`${API_BASE}/reinfolib/landprice?lat=${lat}&lng=${lng}&year=2025`);
     if (!res.ok) return;
     const d = await res.json();
     if (!d.nearest) {

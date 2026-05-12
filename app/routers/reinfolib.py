@@ -14,6 +14,63 @@ from shapely.geometry import Point, shape
 router = APIRouter(prefix="/reinfolib", tags=["reinfolib"])
 
 API_KEY = os.getenv("REINFOLIB_API_KEY", "")
+
+# 簡易的な都道府県コード推定（緯度経度から）
+_PREF_BOUNDS = [
+    ("01", 41.3, 45.6, 139.3, 145.9),  # 北海道
+    ("02", 40.2, 41.6, 139.8, 141.7),  # 青森
+    ("03", 38.7, 40.5, 140.5, 142.1),  # 岩手
+    ("04", 37.7, 39.0, 140.2, 141.7),  # 宮城
+    ("05", 38.9, 40.5, 139.5, 140.8),  # 秋田
+    ("06", 37.7, 39.1, 139.6, 140.7),  # 山形
+    ("07", 36.7, 37.9, 138.9, 141.1),  # 福島
+    ("08", 35.7, 36.8, 139.7, 140.9),  # 茨城
+    ("09", 36.2, 37.2, 139.3, 140.3),  # 栃木
+    ("10", 36.1, 37.0, 138.4, 139.4),  # 群馬
+    ("11", 35.7, 36.3, 138.7, 139.9),  # 埼玉
+    ("12", 34.9, 36.1, 139.7, 140.9),  # 千葉
+    ("13", 35.5, 35.9, 138.9, 139.9),  # 東京
+    ("14", 35.1, 35.7, 138.9, 139.8),  # 神奈川
+    ("15", 36.8, 38.6, 137.7, 139.6),  # 新潟
+    ("16", 36.4, 36.9, 136.7, 137.7),  # 富山
+    ("17", 36.1, 37.0, 136.2, 137.4),  # 石川
+    ("18", 35.4, 36.2, 135.9, 136.9),  # 福井
+    ("19", 35.2, 35.9, 138.3, 139.2),  # 山梨
+    ("20", 35.2, 37.0, 136.9, 138.6),  # 長野
+    ("21", 35.1, 36.4, 136.2, 137.7),  # 岐阜
+    ("22", 34.5, 35.7, 137.5, 139.2),  # 静岡
+    ("23", 34.5, 35.5, 136.6, 137.7),  # 愛知
+    ("24", 33.9, 35.3, 135.8, 136.9),  # 三重
+    ("25", 34.7, 35.6, 135.8, 136.5),  # 滋賀
+    ("26", 34.7, 35.8, 135.0, 136.0),  # 京都
+    ("27", 34.3, 35.1, 135.0, 135.8),  # 大阪
+    ("28", 34.1, 35.7, 134.3, 135.5),  # 兵庫
+    ("29", 34.1, 34.8, 135.5, 136.3),  # 奈良
+    ("30", 33.4, 34.3, 135.0, 136.1),  # 和歌山
+    ("31", 35.0, 35.6, 133.2, 134.3),  # 鳥取
+    ("32", 34.5, 35.8, 131.7, 133.4),  # 島根
+    ("33", 34.5, 35.3, 133.2, 134.5),  # 岡山
+    ("34", 33.9, 35.1, 131.9, 133.5),  # 広島
+    ("35", 33.7, 34.8, 130.8, 132.2),  # 山口
+    ("36", 33.5, 34.4, 133.8, 134.8),  # 徳島
+    ("37", 34.0, 34.5, 133.4, 134.4),  # 香川
+    ("38", 32.8, 34.0, 132.0, 133.7),  # 愛媛
+    ("39", 32.7, 33.9, 132.5, 134.3),  # 高知
+    ("40", 33.0, 34.2, 129.9, 131.4),  # 福岡
+    ("41", 33.0, 33.7, 129.7, 130.7),  # 佐賀
+    ("42", 32.5, 34.4, 128.6, 130.5),  # 長崎
+    ("43", 32.1, 33.5, 130.0, 131.5),  # 熊本
+    ("44", 32.7, 33.9, 130.8, 132.1),  # 大分
+    ("45", 31.3, 33.0, 130.7, 131.9),  # 宮崎
+    ("46", 30.0, 32.5, 129.3, 131.4),  # 鹿児島
+    ("47", 24.0, 28.0, 122.9, 131.4),  # 沖縄
+]
+
+def _guess_pref_code(lat: float, lng: float) -> str:
+    for code, lat_min, lat_max, lng_min, lng_max in _PREF_BOUNDS:
+        if lat_min <= lat <= lat_max and lng_min <= lng <= lng_max:
+            return code
+    return "13"  # デフォルト: 東京
 BASE_URL = "https://www.reinfolib.mlit.go.jp/ex-api/external"
 
 
@@ -104,41 +161,54 @@ def get_hazard(
 def get_landprice(
     lat: float = Query(...),
     lng: float = Query(...),
-    year: int = Query(default=2024),
+    prefecture_code: str = Query(default=""),
+    year: int = Query(default=2025),
 ):
     if not API_KEY:
         raise HTTPException(status_code=503, detail="REINFOLIB_API_KEY が設定されていません")
 
-    z = 15
-    x, y = latlon_to_tile(lat, lng, z)
+    # 都道府県コードが未指定の場合は緯度経度から推定
+    if not prefecture_code:
+        prefecture_code = _guess_pref_code(lat, lng)
 
-    try:
-        url = f"{BASE_URL}/XCT001?response_format=geojson&z={z}&x={x}&y={y}&year={year}"
-        req = urllib.request.Request(
-            url, headers={"Ocp-Apim-Subscription-Key": API_KEY}
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read())
+    all_features = []
+    for division in ["10", "13", "05"]:  # 工業地・準工業地・商業地
+        try:
+            url = f"{BASE_URL}/XCT001?year={year}&area={prefecture_code}&division={division}"
+            req = urllib.request.Request(
+                url, headers={"Ocp-Apim-Subscription-Key": API_KEY,
+                              "Accept-Encoding": "gzip"}
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw = resp.read()
+                # gzip 解凍
+                import gzip as gzip_mod
+                try:
+                    raw = gzip_mod.decompress(raw)
+                except Exception:
+                    pass
+                data = json.loads(raw)
+            all_features.extend(data.get("features", []))
+        except Exception:
+            continue
 
-        features = data.get("features", [])
-        if not features:
-            return {"count": 0, "nearest": None}
+    if not all_features:
+        return {"count": 0, "nearest": None}
 
-        # 最寄りの地価公示点を返す
-        pt = Point(lng, lat)
-        nearest = min(
-            features,
-            key=lambda f: pt.distance(Point(f["geometry"]["coordinates"]))
-        )
-        props = nearest["properties"]
-        return {
-            "count": len(features),
-            "nearest": {
-                "price_per_m2": props.get("L01_006"),
-                "address": props.get("L01_025", ""),
-                "year": props.get("L01_001"),
-                "use_type": props.get("L01_027", ""),
-            }
+    pt = Point(lng, lat)
+    nearest = min(
+        all_features,
+        key=lambda f: pt.distance(Point(f["geometry"]["coordinates"]))
+    )
+    props = nearest["properties"]
+    return {
+        "count": len(all_features),
+        "nearest": {
+            "price_per_m2": props.get("L01_006"),
+            "address": props.get("L01_025", ""),
+            "year": props.get("L01_001"),
+            "use_type": props.get("L01_027", ""),
         }
+    }
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
