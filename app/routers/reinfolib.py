@@ -171,42 +171,53 @@ def get_landprice(
     if not prefecture_code:
         prefecture_code = _guess_pref_code(lat, lng)
 
-    all_features = []
-    for division in ["10", "13", "05"]:  # 工業地・準工業地・商業地
+    import gzip as gzip_mod, io as io_mod
+
+    all_records = []
+    for division in ["00", "05"]:  # 住宅地・商業地（工業地は公示対象外が多い）
         try:
             url = f"{BASE_URL}/XCT001?year={year}&area={prefecture_code}&division={division}"
             req = urllib.request.Request(
-                url, headers={"Ocp-Apim-Subscription-Key": API_KEY,
-                              "Accept-Encoding": "gzip"}
+                url, headers={"Ocp-Apim-Subscription-Key": API_KEY}
             )
             with urllib.request.urlopen(req, timeout=20) as resp:
                 raw = resp.read()
-                # gzip 解凍
-                import gzip as gzip_mod
-                try:
-                    raw = gzip_mod.decompress(raw)
-                except Exception:
-                    pass
-                data = json.loads(raw)
-            all_features.extend(data.get("features", []))
+            with gzip_mod.GzipFile(fileobj=io_mod.BytesIO(raw)) as gz:
+                text = gz.read().decode("utf-8", errors="replace")
+            data = json.loads(text)
+            all_records.extend(data.get("data", []))
         except Exception:
             continue
 
-    if not all_features:
+    if not all_records:
         return {"count": 0, "nearest": None}
 
-    pt = Point(lng, lat)
+    # 座標キーを取得（"位置座標 緯度" / "位置座標 経度"）
+    LAT_KEY = next((k for k in all_records[0] if "緯度" in k), None)
+    LNG_KEY = next((k for k in all_records[0] if "経度" in k), None)
+    PRICE_KEY = next((k for k in all_records[0] if "㎡" in k or "公示価格" in k), None)
+    ADDR_KEY = next((k for k in all_records[0] if "住居表示" in k), None)
+    USE_KEY = next((k for k in all_records[0] if "用途区分" in k), None)
+
+    if not LAT_KEY or not LNG_KEY:
+        return {"count": len(all_records), "nearest": None}
+
+    # 最近傍を Haversine で検索
     nearest = min(
-        all_features,
-        key=lambda f: pt.distance(Point(f["geometry"]["coordinates"]))
+        all_records,
+        key=lambda r: haversine(
+            lat, lng,
+            float(r.get(LAT_KEY, 0) or 0),
+            float(r.get(LNG_KEY, 0) or 0)
+        )
     )
-    props = nearest["properties"]
+    price = nearest.get(PRICE_KEY)
     return {
-        "count": len(all_features),
+        "count": len(all_records),
         "nearest": {
-            "price_per_m2": props.get("L01_006"),
-            "address": props.get("L01_025", ""),
-            "year": props.get("L01_001"),
-            "use_type": props.get("L01_027", ""),
+            "price_per_m2": int(price) if price else None,
+            "address": nearest.get(ADDR_KEY, ""),
+            "year": nearest.get("価格時点", str(year)),
+            "use_type": nearest.get(USE_KEY, ""),
         }
     }
