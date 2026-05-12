@@ -76,6 +76,14 @@ def _guess_pref_code(lat: float, lng: float) -> str:
 BASE_URL = "https://www.reinfolib.mlit.go.jp/ex-api/external"
 
 
+def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    R = 6371000
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng/2)**2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
 def latlon_to_tile(lat: float, lng: float, z: int = 14) -> tuple[int, int]:
     x = int((lng + 180) / 360 * (2 ** z))
     y = int((1 - math.log(math.tan(math.radians(lat)) + 1 / math.cos(math.radians(lat))) / math.pi) / 2 * (2 ** z))
