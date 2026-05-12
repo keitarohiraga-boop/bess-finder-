@@ -124,3 +124,13 @@ def update_case(case_id: int, body: dict, db: Session = Depends(get_db)):
     return _to_dict(case)
 
 
+@router.delete("/{case_id}", summary="案件を削除（初期状態に戻す）")
+def delete_case(case_id: int, db: Session = Depends(get_db)):
+    case = db.get(models.SiteCase, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    db.delete(case)
+    db.commit()
+    return {"deleted": case_id}
+
+

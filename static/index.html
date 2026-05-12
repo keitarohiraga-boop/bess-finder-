@@ -4088,6 +4088,14 @@ function renderCaseTab(site) {
       </div>
       ` : ""}
 
+      <!-- 案件リセット -->
+      ${c ? `<div style="text-align:right;margin-bottom:10px">
+        <span onclick="resetCase(${site.id})"
+          style="font-size:10px;color:#475569;cursor:pointer;text-decoration:underline">
+          🗑️ 案件記録をリセット（初期状態に戻す）
+        </span>
+      </div>` : ""}
+
       <!-- メモ -->
       <div style="font-size:10px;color:#64748b;margin-bottom:4px">メモ（活動ログ）</div>
       <div style="margin-bottom:6px">${quickNoteHtml}</div>
@@ -4139,6 +4147,22 @@ function copyApprovalMessage(siteId) {
     const btn = el.nextElementSibling;
     if (btn) { btn.textContent = "✅ コピー完了！"; setTimeout(() => btn.textContent = "📋 メッセージをコピー", 2000); }
   });
+}
+
+async function resetCase(siteId) {
+  if (!confirm("この候補地の案件記録をすべて削除して初期状態に戻しますか？\nステータス・担当・メモがすべて消えます。")) return;
+  try {
+    const c = _caseMap[siteId];
+    if (!c) return;
+    const res = await fetch(`${API_BASE}/cases/${c.id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("削除失敗");
+    delete _caseMap[siteId];
+    updatePendingBadge();
+    renderAll();
+    refreshCaseButton(siteId);
+    const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+    if (site) refreshCaseTab(site);
+  } catch(e) { alert(e.message); }
 }
 
 function refreshCaseButton(siteId) {
