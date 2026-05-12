@@ -1543,11 +1543,10 @@ function calcCategoryScores(site, hazard) {
   const evS    = site.ev?.ev_score ?? 20;
   const demandScore = Math.round(solarS * 0.4 + evS * 0.6);
 
-  // 規制・リスクスコア
+  // 規制・リスクスコア（J-SHIS地盤データは全候補地一括取得不可のため除外・個別タブで別表示）
   const farmS  = !site.farmClass ? 95 : site.farmClass === 'class3-farm' ? 70 : site.farmClass === 'class2-farm' ? 45 : 10;
   const floodS = site.flood === 'none' ? 100 : site.flood === 'low' ? 70 : 30;
-  const hazardS = hazard?.score ?? 65;
-  const riskScore = Math.round(farmS * 0.35 + floodS * 0.35 + hazardS * 0.30);
+  const riskScore = Math.round(farmS * 0.5 + floodS * 0.5);
 
   return { locationScore, revenueScore, demandScore, riskScore };
 }
@@ -2672,9 +2671,8 @@ async function loadEarthquakeHazard(site) {
       <div class="detail-row"><span class="key">地盤スコア</span><span class="val" style="color:${scoreColor}">${d.score} / 100</span></div>
       <div style="font-size:10px;color:#475569;padding:4px 0 8px">出典: ${d.data_source}</div>
     `;
-    // 地震データが揃ったらスコアを更新
+    // 地震データは規制リスクタブの個別表示のみ（全体スコアには反映しない→左右パネル一致）
     _currentHazard = d;
-    updateScoreDisplay();
   } catch (e) {
     if (el) el.innerHTML = `<div style="color:#475569;font-size:11px">地震ハザードデータを取得できませんでした</div>`;
   }
