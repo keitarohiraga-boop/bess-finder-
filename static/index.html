@@ -4141,11 +4141,29 @@ function copyApprovalMessage(siteId) {
   });
 }
 
+function refreshCaseButton(siteId) {
+  const c = _caseMap[siteId];
+  const el = document.getElementById("scoreCard-case");
+  if (!el) return;
+  const STATUS_COLORS = {"発見":"#64748b","精査中":"#38bdf8","承認待ち":"#fbbf24","アプローチ中":"#4ade80","契約済":"#6ee7b7","見送り":"#475569"};
+  const sColor = c ? STATUS_COLORS[c.status] || "#64748b" : "#475569";
+  const sEmoji = c ? STATUS_EMOJI[c.status] || "📁" : "📁";
+  const sLabel = c ? c.status : "未登録";
+  el.innerHTML = `
+    <div style="font-size:22px;line-height:1">${sEmoji}</div>
+    <div style="font-size:9px;color:#64748b;margin-top:3px">案件</div>
+    <div style="font-size:9px;color:${sColor};margin-top:1px;font-weight:600">${sLabel}</div>
+  `;
+}
+
 async function updateCaseField(siteId, field, value) {
   try {
     await saveCase(siteId, { [field]: value });
-    // ステータス変更時は左パネルの表示も更新
-    if (field === "status") renderAll();
+    if (field === "status") {
+      renderAll();           // 左パネル更新
+      refreshCaseButton(siteId); // ヘッダー📁ボタン更新
+      refreshCaseTab(currentSites.find(s=>s.id===siteId)||SITES.find(s=>s.id===siteId)); // 案件タブ更新
+    }
   } catch(e) { alert("保存失敗: " + e.message); }
 }
 
