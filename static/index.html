@@ -4025,20 +4025,37 @@ function renderCaseTab(site) {
         </div>
         <div>
           <div style="font-size:10px;color:#64748b;margin-bottom:4px">種別</div>
-          <select onchange="updateCaseField(${site.id},'case_type',this.value)"
+          <select id="caseTypeSelect-${site.id}"
+            onchange="updateCaseField(${site.id},'case_type',this.value).then(()=>{ const s=currentSites.find(x=>x.id===${site.id})||SITES.find(x=>x.id===${site.id}); if(s)refreshCaseTab(s); })"
             style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px;border-radius:6px;font-size:12px">
-            <option value="自社" ${c?.case_type==="自社"?"selected":""}>自社</option>
+            <option value="自社" ${c?.case_type!=="パートナー依頼"?"selected":""}>自社</option>
             <option value="パートナー依頼" ${c?.case_type==="パートナー依頼"?"selected":""}>パートナー依頼</option>
           </select>
         </div>
       </div>
 
+      <!-- 担当欄：種別に応じて表示を切り替え -->
+      ${c?.case_type === "パートナー依頼" ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <div style="font-size:10px;color:#64748b;margin-bottom:4px">パートナー会社名 <span style="color:#f87171">*</span></div>
+          <input id="partnerInput-${site.id}" type="text" value="${c?.partner_name||""}" placeholder="例: ○○不動産"
+            onblur="updateCaseField(${site.id},'partner_name',this.value)"
+            style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none">
+        </div>
+        <div>
+          <div style="font-size:10px;color:#64748b;margin-bottom:4px">担当名 <span style="color:#f87171">*</span></div>
+          <input id="assigneeInput-${site.id}" type="text" value="${c?.assignee||""}" placeholder="例: 田中"
+            onblur="updateCaseField(${site.id},'assignee',this.value)"
+            style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none">
+        </div>
+      </div>` : `
       <div style="margin-bottom:10px">
-        <div style="font-size:10px;color:#64748b;margin-bottom:4px">担当</div>
-        <input id="assigneeInput-${site.id}" type="text" value="${c?.assignee||""}" placeholder="例: 自社担当名 or パートナー会社名＋担当名"
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px">担当名 <span style="color:#f87171">*</span></div>
+        <input id="assigneeInput-${site.id}" type="text" value="${c?.assignee||""}" placeholder="例: 副代表"
           onblur="updateCaseField(${site.id},'assignee',this.value)"
           style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none">
-      </div>
+      </div>`}
 
       <!-- 承認待ち：定型文とコピーボタン表示 -->
       ${isApprovalPending ? `
@@ -4090,7 +4107,9 @@ function generateApprovalMessage(site) {
   const overall = calcOverallScore(scores);
   const c = _caseMap[site.id];
   const assignee = c?.assignee || "担当";
-  const caseType = c?.case_type === "パートナー依頼" ? `パートナー依頼（${c?.partner_name || ""}）` : "自社";
+  const caseType = c?.case_type === "パートナー依頼"
+    ? `パートナー依頼（${c?.partner_name || "会社名未入力"}・${c?.assignee || "担当未入力"}）`
+    : `自社（${c?.assignee || "担当未入力"}）`;
   return `📋 BESS候補地 承認依頼
 
 候補地: ${site.name}
