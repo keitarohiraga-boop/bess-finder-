@@ -907,6 +907,68 @@
 </div>
 
 <script>
+/**
+ * ============================================================
+ * BESS Site Finder - フロントエンド全体構成
+ * ============================================================
+ *
+ * ## ファイル構成（index.html 内）
+ *  1. CSS（style タグ）
+ *     - 基本レイアウト（header / sidebar / map / detail-panel）
+ *     - コンポーネント別スタイル（タブ、スコアカード、シミュレーター等）
+ *     - モバイル対応メディアクエリ
+ *
+ *  2. HTML（body タグ）
+ *     - ヘッダー・ハンバーガーメニュー
+ *     - 左パネル（フィルター・候補地一覧）
+ *     - 地図エリア（MapLibre GL JS）
+ *     - 右パネル（4タブ：立地・収益・需要・規制リスク）
+ *     - 各種モーダル（エクスポート・住所評価・分析ロジック・重みづけ）
+ *
+ *  3. JavaScript（script タグ）
+ *     - グローバル状態（下記参照）
+ *     - データ取得関数（fetch系）
+ *     - 地図レイヤー管理
+ *     - UIイベントハンドラ
+ *     - スコア計算・シミュレーター
+ *     - エクスポート機能（CSV / HTML）
+ *
+ * ## グローバル状態変数
+ *
+ * ### API / 接続設定
+ *   USE_API      {boolean} true=Railwayバックエンド使用、false=モックデータ
+ *   API_BASE     {string}  バックエンドAPIのベースURL
+ *
+ * ### 地図
+ *   map          {maplibregl.Map}  MapLibreの地図インスタンス
+ *   _activePopup {Popup|null}      現在表示中のポップアップ（1つのみ管理）
+ *   evalMarker   {Marker|null}     住所評価のピンマーカー
+ *
+ * ### 候補地リスト
+ *   filters      {Object}  フィルター状態（landuse/farm/flood/距離/面積/傾斜）
+ *   currentSites {Array}   現在表示中の候補地リスト（API取得またはフィルター済み）
+ *   selectedSiteId {number|null}  選択中の候補地ID
+ *   sortBy       {string}  ソート基準（"score" | "area" | "distance"）
+ *
+ * ### 重みづけ・スコア
+ *   WEIGHTS      {Object}  4カテゴリのスコア重み（location/revenue/demand/risk）
+ *   _currentSite   {Object|null}  右パネルに表示中の候補地データ
+ *   _currentHazard {Object|null}  J-SHISから取得した地震ハザードデータ
+ *
+ * ### 土地コスト（シミュレーター）
+ *   _landMode        {string}  "buy" | "lease"
+ *   _landPricePerM2  {number|null}  公示地価（円/㎡）
+ *
+ * ## 主要データフロー
+ *   1. 初期化: initMap() → addMapSources() → renderAll()
+ *   2. フィルター変更: renderAll() → fetch API → renderSiteList()
+ *   3. 候補地選択: selectSite() → showDetail() → loadEarthquakeHazard() / loadFloodHazard() / loadLandPrice()
+ *   4. シミュレーター: calcSim() → renderFinancials()
+ *   5. エクスポート: buildExportData() → downloadFile()
+ *
+ * ============================================================
+ */
+
 // ===== API設定 =====
 // バックエンド起動後は USE_API = true に切り替え
 const USE_API = true;
@@ -1090,10 +1152,11 @@ let filters = {
   areaMin: 1000,
   slopeMax: 5,
 };
-let selectedSiteId = null;
-let sortBy = "score";
-let map = null;
-let currentSites = [];
+// ----- 地図・UI状態 -----
+let map = null;           // MapLibreインスタンス（initMap()で初期化）
+let selectedSiteId = null; // 選択中の候補地ID
+let sortBy = "score";     // ソート基準: "score" | "area" | "distance"
+let currentSites = []; // フィルター後の表示候補地（renderAll()で更新）
 
 // ===== 地図初期化 =====
 function initMap() {
@@ -1517,9 +1580,12 @@ function selectSite(id) {
 }
 
 // ===== スコア計算 =====
+// ----- スコア重みづけ（⚙️重みづけパネルで変更可能） -----
 let WEIGHTS = { location: 30, revenue: 40, demand: 15, risk: 15 };
-let _currentSite = null;
-let _currentHazard = null;
+// 合計は100%でなくても可（calcOverallScore()で正規化）
+// ----- 右パネル状態（showDetail()で更新） -----
+let _currentSite   = null; // 現在詳細表示中の候補地オブジェクト
+let _currentHazard = null; // J-SHISから非同期取得した地震ハザードデータ
 
 const PRESETS = {
   balance:  { location: 25, revenue: 35, demand: 20, risk: 20 },
