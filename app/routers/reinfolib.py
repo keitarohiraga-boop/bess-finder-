@@ -210,5 +210,3 @@ def get_landprice(
             "use_type": props.get("L01_027", ""),
         }
     }
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
