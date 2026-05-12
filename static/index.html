@@ -2163,8 +2163,44 @@ const LOGIC_SOURCES = [
     metric: "地価公示・都道府県地価調査（円/㎡）",
     impact: "取得コスト参考・候補地比較",
     update: "年1回（公示地価発表後）",
-    status: "API申請中",
+    status: "API申請中", confidence: "－", lastUpdated: "未取得",
     url: "https://www.reinfolib.mlit.go.jp/",
+  },
+];
+
+// 参考情報・推計データ（実測値ではなくガイドライン・業界標準に基づく推計）
+const REFERENCE_SOURCES = [
+  {
+    name: "系統連系工事費負担金（概算）",
+    icon: "⚡",
+    basis: "経済産業省「再エネ発電設備の系統連系に係る検討に関するガイドライン」・電力広域的運営推進機関（OCCTO）公表資料・各電力会社の接続検討標準値",
+    method: "変電所からの距離・想定連系電圧に基づく区間別費用幅を算出。実際の費用は電力会社への接続検討申込後に確定。",
+    note: "±50〜70%程度の誤差が生じる場合があります。",
+    url: "https://www.meti.go.jp/policy/safety_security/industrial_safety/sangyo/electric/detail/setsuzoku_info.html",
+  },
+  {
+    name: "月次収益分布・季節係数",
+    icon: "📊",
+    basis: "JEPXスポット市場の季節変動パターン（2020〜2024年実績の傾向値）",
+    method: "夏冬のピーク需要・春の需要低下傾向を基に月別係数（0.8〜1.5）を設定し年間収益を按分。",
+    note: "年度・気象条件・エネルギー政策により変動します。",
+    url: "https://www.jepx.jp/",
+  },
+  {
+    name: "容量市場・長期脱炭素電源 将来価格見通し",
+    icon: "📋",
+    basis: "OCCTOメインオークション直近確定値（2029年度）をベースに直線外挿",
+    method: "2030〜2032年度は確定値が存在しないため、第6回オークション実績から推計。",
+    note: "実際の価格はオークション結果によって決定されます。参考値としてご利用ください。",
+    url: "https://www.occto.or.jp/",
+  },
+  {
+    name: "BESS市場密度（エリア別接続検討量）",
+    icon: "🔋",
+    basis: "電力広域的運営推進機関（OCCTO）系統用蓄電池接続検討受付実績（2024年）",
+    method: "電力エリア別の系統用蓄電池接続検討受付量（MW）を市場成熟度スコアに換算。",
+    note: "接続検討＝建設確定ではなく、計画段階の件数を含みます。",
+    url: "https://www.occto.or.jp/",
   },
 ];
 
@@ -2192,6 +2228,31 @@ function renderLogicTable() {
       </td>
     </tr>
   `).join("");
+
+  // 参考情報セクション（区切り線付き）
+  tbody.innerHTML += `
+    <tr><td colspan="5" style="padding:16px 12px 8px">
+      <div style="border-top:1px solid #334155;padding-top:14px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">参考情報・推計データ</div>
+        <div style="font-size:10px;color:#475569">以下は実測値ではなく、公的ガイドライン・業界標準・過去実績に基づく推計値です。意思決定の参考としてご利用ください。</div>
+      </div>
+    </td></tr>
+    ${REFERENCE_SOURCES.map((s, i) => `
+    <tr style="border-bottom:1px solid #1e293b;background:${i%2===0?'#0f172a18':''}">
+      <td style="padding:10px 12px" colspan="2">
+        <a href="${s.url}" target="_blank" rel="noopener"
+          style="color:#94a3b8;text-decoration:none;font-weight:600;display:flex;align-items:center;gap:6px;font-size:12px">
+          ${s.icon} ${s.name} <span style="font-size:10px;opacity:0.6">↗</span>
+        </a>
+        <div style="font-size:10px;color:#475569;margin-top:4px">${s.basis}</div>
+      </td>
+      <td style="padding:10px 12px;color:#64748b;font-size:11px" colspan="2">${s.method}</td>
+      <td style="padding:10px 12px">
+        <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:#1e2a1e;color:#6b7280">推計値</span>
+        <div style="font-size:10px;color:#475569;margin-top:4px">${s.note}</div>
+      </td>
+    </tr>`).join("")}
+  `;
 }
 
 // ===== 住所評価機能 =====
