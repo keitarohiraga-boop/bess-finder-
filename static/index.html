@@ -1689,7 +1689,14 @@ function showDetail(site) {
       <div class="section-title" style="margin-top:14px">系統連系</div>
       <div class="detail-row"><span class="key">最寄り変電所距離</span><span class="val ${site.substationDist < 1000 ? 'ok' : site.substationDist < 2000 ? 'warn' : 'ng'}">${site.substationDist}m</span></div>
       <div class="detail-row"><span class="key">連系電圧（推定）</span><span class="val">6.6kV（高圧）</span></div>
-      <div class="detail-row"><span class="key">接続費用（概算）</span><span class="val">${site.substationDist < 1000 ? '低〜中' : site.substationDist < 2500 ? '中' : '高'}</span></div>
+      ${(() => {
+        const c = estimateConnectionCost(site.substationDist);
+        const range = c.max ? `約${c.min.toLocaleString()}万〜${c.max.toLocaleString()}万円` : `${c.min.toLocaleString()}万円以上`;
+        const color = site.substationDist < 1000 ? 'ok' : site.substationDist < 2500 ? 'warn' : 'ng';
+        return `<div class="detail-row"><span class="key">接続費用（概算）</span><span class="val ${color}">${range}</span></div>
+        <div class="detail-row"><span class="key" style="font-size:10px;color:#475569">└ 連系電圧想定</span><span class="val" style="font-size:11px">${c.voltage}</span></div>
+        ${c.note ? `<div style="font-size:10px;color:#475569;padding:2px 0 4px">　${c.note}</div>` : ''}`;
+      })()}
       <div class="section-title" style="margin-top:14px">💴 地価公示（実データ）</div>
       <div id="landPriceReal" style="font-size:12px;color:#475569;padding:6px 0">取得中...</div>
     </div>
@@ -1809,6 +1816,43 @@ function showDetail(site) {
   loadEarthquakeHazard(site);
   loadFloodHazard(site.lat, site.lng, "floodHazardReal");
   loadLandPrice(site.lat, site.lng, "landPriceReal");
+}
+
+// ===== 系統連系費用概算 =====
+// 出典: 経済産業省「再生可能エネルギー発電設備の系統連系に係る検討に関するガイドライン」
+//       電力広域的運営推進機関（OCCTO）公表資料・各電力会社の接続検討標準値
+function estimateConnectionCost(distM) {
+  if (distM < 300) {
+    return {
+      min: 30, max: 150, voltage: '高圧（6.6kV）',
+      note: '既存設備への近距離接続。低コストが期待できる。',
+    };
+  } else if (distM < 700) {
+    return {
+      min: 100, max: 400, voltage: '高圧（6.6kV）',
+      note: '既存電柱を活用した接続が基本。',
+    };
+  } else if (distM < 1500) {
+    return {
+      min: 300, max: 1000, voltage: '高圧（6.6kV）',
+      note: '電柱新設が必要な場合あり。',
+    };
+  } else if (distM < 3000) {
+    return {
+      min: 800, max: 5000, voltage: '高圧〜特別高圧（22kV）',
+      note: '新規回線工事が必要。特別高圧連系への切り替えを検討。',
+    };
+  } else if (distM < 5000) {
+    return {
+      min: 3000, max: 20000, voltage: '特別高圧（22〜66kV）',
+      note: '大規模工事。電力会社との個別協議が必須。',
+    };
+  } else {
+    return {
+      min: 10000, max: null, voltage: '特別高圧（66kV以上）',
+      note: '大規模・長距離工事。数億円以上になる可能性あり。個別検討必須。',
+    };
+  }
 }
 
 // ===== 申請フロー生成 =====
@@ -2341,6 +2385,7 @@ const TIPS = {
   "FIT集積スコア": "電力エリア内のFIT（固定価格買取制度）認定太陽光発電の導入量に基づくスコア。導入量が多いエリアほど将来的な出力制御リスクが高く、BESSの経済的価値が高まる。",
   "SAIDI":          "System Average Interruption Duration Index（需要家平均停電時間）。1需要家あたり年間何分停電するかを示す。値が大きいほど停電が多く、非常用電源としてのBESS価値が高い。",
   "EV普及率":       "電動車（BEV・PHV）の新車登録に占める割合。普及率が高い地域ではV2G（Vehicle-to-Grid）や急速充電バッファとしてのBESS需要が将来的に高まる。",
+  "系統連系費用":    "変電所までの距離に基づく工事費負担金の概算。電力会社が接続検討後に正式決定する。距離・電圧・地形・既存設備の有無により大きく変動する。出典: 経済産業省系統連系ガイドライン・OCCTO公表資料。",
   "大口需要家スコア": "半径5km以内の病院・工場・データセンター・大型商業施設の数と距離から算出。BESSからの直接電力供給契約（P2P・オフサイトPPA）の可能性を示す。施設が多く近いほど高スコア。",
   "防災レジリエンス": "半径5km以内の避難所・消防署・医療施設の集積度から算出。自治体や医療機関との非常用電源契約の可能性を示す。災害時の電力供給価値の指標。",
 };
@@ -3129,7 +3174,7 @@ function buildPDFHTML(d) {
         <div class="kv"><span class="k">接道幅員</span><span class="v">${d.site.roadWidth}m</span></div>
         <div class="kv"><span class="k">変電所距離</span><span class="v">${d.site.substationDist}m</span></div>
         <div class="kv"><span class="k">連系電圧（推定）</span><span class="v">6.6kV（高圧）</span></div>
-        <div class="kv"><span class="k">接続費用感</span><span class="v">${d.site.substationDist<1000?'低〜中':d.site.substationDist<2500?'中':'高'}</span></div>
+        ${(() => { const c = estimateConnectionCost(d.site.substationDist); return `<div class="kv"><span class="k">接続費用概算</span><span class="v">${c.max?'約'+c.min.toLocaleString()+'万〜'+c.max.toLocaleString()+'万円':c.min.toLocaleString()+'万円以上'}</span></div>`; })()}
         <div class="kv"><span class="k">土壌リスク</span><span class="v">${d.site.soilRisk}</span></div>
       </div>
 
