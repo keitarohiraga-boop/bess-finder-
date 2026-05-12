@@ -1663,7 +1663,7 @@ function showDetail(site) {
          ["規制\nリスク","catRiskScore",scores.riskScore,"risk"]].map(([l,id,v,tab],i)=>`
         <div id="scoreCard-${tab}" onclick="switchTab('${tab}')"
           style="background:#0f172a;border-radius:6px;padding:8px 4px;text-align:center;cursor:pointer;border:1px solid ${i===0?'#38bdf8':'transparent'};transition:border-color 0.15s">
-          <div style="font-size:10px;color:#64748b;white-space:pre-line;line-height:1.3">${l}</div>
+          <div style="font-size:10px;color:#64748b;white-space:pre-line;line-height:1.3;min-height:28px;display:flex;align-items:flex-end;justify-content:center">${l}</div>
           <div id="${id}" style="font-size:20px;font-weight:700;color:${scoreColor(v)};margin-top:2px">${v}</div>
         </div>`).join("")}
     </div>
