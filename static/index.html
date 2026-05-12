@@ -376,6 +376,17 @@
     }
     .api-notice strong { color: #38bdf8; }
 
+    /* ===== プレゼンモード ===== */
+    body.present-mode .case-only { display: none !important; }
+    body.present-mode #pendingBadge { display: none !important; }
+    .case-badge { font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap; }
+    .case-badge.発見      { background:#1e293b;color:#64748b; }
+    .case-badge.精査中    { background:#1e3a5f;color:#38bdf8; }
+    .case-badge.承認待ち  { background:#713f12;color:#fbbf24; }
+    .case-badge.アプローチ中 { background:#14532d;color:#4ade80; }
+    .case-badge.契約済    { background:#064e3b;color:#6ee7b7; }
+    .case-badge.見送り    { background:#1e293b;color:#475569; }
+
     /* ===== モバイル対応 ===== */
     .mobile-menu-btn {
       display: none;
@@ -600,6 +611,18 @@
     style="background:#1e293b;border:1px solid #475569;color:#94a3b8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
     ⚙️ 重みづけ
   </button>
+  <!-- 承認待ちバッジ -->
+  <button id="pendingBadge" onclick="showPendingCases()" style="display:none;background:#92400e;border:1px solid #f59e0b;color:#fbbf24;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">
+    ⏳ 承認待ち <span id="pendingCount">0</span>件
+  </button>
+  <!-- プレゼンモードトグル -->
+  <div style="display:flex;align-items:center;gap:6px;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:4px 10px;font-size:11px">
+    <span style="color:#64748b">社内</span>
+    <div id="presentToggle" onclick="togglePresentMode()" style="width:32px;height:18px;background:#334155;border-radius:9px;cursor:pointer;position:relative;transition:background 0.2s">
+      <div id="presentToggleDot" style="width:14px;height:14px;background:#64748b;border-radius:50%;position:absolute;top:2px;left:2px;transition:left 0.2s"></div>
+    </div>
+    <span style="color:#64748b">提案用</span>
+  </div>
   <button onclick="openLogicModal()"
     style="margin-left:auto;background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
     📊 分析ロジック・データ出典
@@ -1637,6 +1660,7 @@ function renderSiteList(sites) {
     const div = document.createElement("div");
     div.className = "site-card" + (s.id === selectedSiteId ? " selected" : "");
     div.dataset.id = s.id;
+    const caseInfo = _caseMap[s.id];
     div.innerHTML = `
       <div class="score-badge ${cls}">${ws}</div>
       <div class="site-info">
@@ -1648,6 +1672,7 @@ function renderSiteList(sites) {
         <div>
           <span class="tag-chip ${chipFlood}">${s.floodLabel}</span>
           ${s.farmClass ? `<span class="tag-chip ${chipFarm}">${s.landuseLabel}</span>` : `<span class="tag-chip chip-ok">${s.landuseLabel}</span>`}
+          ${caseInfo ? `<span class="case-badge ${caseInfo.status} case-only">${STATUS_EMOJI[caseInfo.status]||""} ${caseInfo.status}</span>` : ""}
         </div>
       </div>
     `;
@@ -1806,6 +1831,11 @@ function applyPreset(key) {
 // タブ切り替え
 function switchTab(name) {
   document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.id === "tab-" + name));
+  document.querySelectorAll(".tab-btn").forEach(b => {
+    const isActive = b.dataset.tab === name;
+    b.style.borderBottomColor = isActive ? (name === "case" ? "#f59e0b" : "#38bdf8") : "transparent";
+    b.style.color = isActive ? (name === "case" ? "#f59e0b" : "#38bdf8") : "#64748b";
+  });
   ["location","revenue","demand","risk"].forEach(tab => {
     const card = document.getElementById("scoreCard-" + tab);
     if (card) card.style.borderColor = tab === name ? "#38bdf8" : "transparent";
@@ -1854,6 +1884,15 @@ function showDetail(site) {
 
   // ボディ：タブ構成
   document.getElementById("detailBody").innerHTML = `
+    <!-- タブナビ（案件管理タブは社内モードのみ表示） -->
+    <div style="display:flex;border-bottom:1px solid #334155;margin:0 -20px;padding:0 20px 0;gap:2px;overflow-x:auto">
+      <button class="tab-btn active" data-tab="location" onclick="switchTab('location')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid #38bdf8;color:#38bdf8;cursor:pointer">📍 立地</button>
+      <button class="tab-btn" data-tab="revenue" onclick="switchTab('revenue')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;cursor:pointer">💰 収益</button>
+      <button class="tab-btn" data-tab="demand" onclick="switchTab('demand')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;cursor:pointer">🏭 需要</button>
+      <button class="tab-btn" data-tab="risk" onclick="switchTab('risk')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;cursor:pointer">⚖️ 規制</button>
+      <button class="tab-btn case-only" data-tab="case" onclick="switchTab('case')" style="white-space:nowrap;padding:8px 10px;font-size:11px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:#f59e0b;cursor:pointer">📁 案件</button>
+    </div>
+
     <!-- 概要・立地タブ -->
     <div id="tab-location" class="tab-content active">
       ${catScoreCard("立地スコア", scores.locationScore)}
@@ -1988,6 +2027,11 @@ function showDetail(site) {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 案件管理タブ（社内モードのみ表示） -->
+    <div id="tab-case" class="tab-content case-only">
+      <div id="caseTabContent" style="padding-top:12px">${renderCaseTab(site)}</div>
     </div>
   `;
 
@@ -3850,6 +3894,269 @@ function doExport(format) {
   closeExportModal();
 }
 
+// ===== 案件管理 =====
+let _caseMap = {};         // site_id → case object のキャッシュ
+let _isPresentMode = false;
+
+const STATUS_LIST  = ["発見","精査中","承認待ち","アプローチ中","契約済","見送り"];
+const STATUS_EMOJI = {"発見":"📍","精査中":"🔍","承認待ち":"⏳","アプローチ中":"🚀","契約済":"✅","見送り":"❌"};
+const QUICK_NOTES  = ["地権者特定済","初回連絡済（郵便）","初回連絡済（電話）","面談日程調整済","面談完了","価格提示済","基本合意済"];
+
+function togglePresentMode() {
+  _isPresentMode = !_isPresentMode;
+  document.body.classList.toggle("present-mode", _isPresentMode);
+  const dot = document.getElementById("presentToggleDot");
+  const tog = document.getElementById("presentToggle");
+  if (dot) { dot.style.left = _isPresentMode ? "16px" : "2px"; dot.style.background = _isPresentMode ? "#0ea5e9" : "#64748b"; }
+  if (tog) tog.style.background = _isPresentMode ? "#0ea5e9" : "#334155";
+}
+
+async function loadCaseMap() {
+  if (!USE_API) return;
+  try {
+    const res = await fetch(`${API_BASE}/cases`);
+    if (!res.ok) return;
+    const cases = await res.json();
+    _caseMap = {};
+    cases.forEach(c => { _caseMap[c.site_id] = c; });
+    updatePendingBadge();
+    renderAll();
+  } catch(e) { console.warn("案件データ取得失敗:", e); }
+}
+
+function updatePendingBadge() {
+  const pending = Object.values(_caseMap).filter(c => c.status === "承認待ち").length;
+  const badge = document.getElementById("pendingBadge");
+  const count = document.getElementById("pendingCount");
+  if (badge && count) {
+    count.textContent = pending;
+    badge.style.display = pending > 0 ? "block" : "none";
+  }
+}
+
+function showPendingCases() {
+  const pending = Object.values(_caseMap).filter(c => c.status === "承認待ち");
+  if (pending.length === 0) return;
+  // 最初の承認待ち案件を開く
+  const site = currentSites.find(s => s.id === pending[0].site_id);
+  if (site) selectSite(site.id);
+}
+
+async function saveCase(siteId, updates) {
+  const existing = _caseMap[siteId];
+  let res;
+  if (existing) {
+    res = await fetch(`${API_BASE}/cases/${existing.id}`, {
+      method: "PATCH", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(updates)
+    });
+  } else {
+    const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+    res = await fetch(`${API_BASE}/cases`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ site_id: siteId, site_name: site?.name || "", ...updates })
+    });
+  }
+  if (!res.ok) throw new Error("案件保存失敗");
+  const updated = await res.json();
+  _caseMap[siteId] = updated;
+  updatePendingBadge();
+  return updated;
+}
+
+async function validateSlackUrl(url) {
+  const res = await fetch(`${API_BASE}/cases/validate-url`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ url })
+  });
+  return res.json();
+}
+
+function renderCaseTab(site) {
+  const c = _caseMap[site.id];
+  const statusOptions = STATUS_LIST.map(s =>
+    `<option value="${s}" ${c?.status===s?"selected":""}>${STATUS_EMOJI[s]} ${s}</option>`
+  ).join("");
+
+  const notes = c?.notes || [];
+  const notesHtml = notes.length > 0
+    ? [...notes].reverse().map(n => `
+        <div style="padding:6px 0;border-bottom:1px solid #1e293b;font-size:11px">
+          <span style="color:#475569">${new Date(n.timestamp).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
+          <span style="color:#94a3b8;margin:0 4px">${n.author}</span>
+          <span style="color:#cbd5e1">${n.text}</span>
+        </div>`).join("")
+    : `<div style="color:#475569;font-size:11px;padding:8px 0">メモなし</div>`;
+
+  const quickNoteHtml = QUICK_NOTES.map(n =>
+    `<button onclick="addQuickNote(${site.id},'${n}')"
+      style="font-size:10px;padding:3px 7px;background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:4px;cursor:pointer;margin:2px">${n}</button>`
+  ).join("");
+
+  const isApprovalPending = c?.status === "承認待ち";
+  const slackUrl = c?.slack_thread_url || "";
+
+  return `
+    <div class="case-only">
+      <div class="section-title">📁 案件管理</div>
+
+      <!-- 基本情報 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div>
+          <div style="font-size:10px;color:#64748b;margin-bottom:4px">ステータス</div>
+          <select onchange="updateCaseField(${site.id},'status',this.value)"
+            style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px;border-radius:6px;font-size:12px">
+            ${statusOptions}
+          </select>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#64748b;margin-bottom:4px">種別</div>
+          <select onchange="updateCaseField(${site.id},'case_type',this.value)"
+            style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px;border-radius:6px;font-size:12px">
+            <option value="自社" ${c?.case_type==="自社"?"selected":""}>自社</option>
+            <option value="パートナー依頼" ${c?.case_type==="パートナー依頼"?"selected":""}>パートナー依頼</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px">担当</div>
+        <input id="assigneeInput-${site.id}" type="text" value="${c?.assignee||""}" placeholder="例: 副代表、田中（○○不動産）"
+          onblur="updateCaseField(${site.id},'assignee',this.value)"
+          style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none">
+      </div>
+
+      <!-- 承認依頼セクション -->
+      ${c?.status === "精査中" ? `
+      <div style="background:#0f172a;border:1px solid #f59e0b;border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:#fbbf24;margin-bottom:6px">⏳ 承認依頼（Slackスレッド連携）</div>
+        <input id="slackUrlInput-${site.id}" type="text" placeholder="https://xxx.slack.com/archives/C.../p..."
+          style="width:100%;background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:11px;outline:none;margin-bottom:6px">
+        <button onclick="requestApproval(${site.id})"
+          style="width:100%;padding:7px;background:#92400e;border:1px solid #f59e0b;color:#fbbf24;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
+          📤 社長に承認依頼（SlackURL確認後テキスト生成）
+        </button>
+      </div>` : ""}
+
+      <!-- 承認ボタン（承認待ち時） -->
+      ${isApprovalPending ? `
+      <div style="background:#0f172a;border:1px solid #4ade80;border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:#4ade80;margin-bottom:4px">✅ 承認確認</div>
+        ${slackUrl ? `<a href="${slackUrl}" target="_blank" style="display:block;font-size:10px;color:#38bdf8;margin-bottom:6px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap">💬 Slackスレッドを見る →</a>` : ""}
+        <div style="display:flex;gap:6px">
+          <button onclick="approveCase(${site.id})"
+            style="flex:1;padding:7px;background:#14532d;border:1px solid #4ade80;color:#4ade80;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">✅ Go承認</button>
+          <button onclick="rejectCase(${site.id})"
+            style="flex:1;padding:7px;background:#450a0a;border:1px solid #f87171;color:#f87171;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">❌ 見送り</button>
+        </div>
+      </div>` : ""}
+
+      <!-- メモ -->
+      <div style="font-size:10px;color:#64748b;margin-bottom:4px">メモ（活動ログ）</div>
+      <div style="margin-bottom:6px">${quickNoteHtml}</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input id="noteInput-${site.id}" type="text" placeholder="メモを入力..."
+          onkeydown="if(event.key==='Enter')addNote(${site.id})"
+          style="flex:1;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none">
+        <button onclick="addNote(${site.id})"
+          style="padding:5px 10px;background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:6px;cursor:pointer;font-size:12px">保存</button>
+      </div>
+      <div style="max-height:180px;overflow-y:auto">${notesHtml}</div>
+    </div>
+  `;
+}
+
+async function updateCaseField(siteId, field, value) {
+  try {
+    await saveCase(siteId, { [field]: value });
+    // ステータス変更時は左パネルの表示も更新
+    if (field === "status") renderAll();
+  } catch(e) { alert("保存失敗: " + e.message); }
+}
+
+async function addNote(siteId) {
+  const input = document.getElementById(`noteInput-${siteId}`);
+  if (!input || !input.value.trim()) return;
+  try {
+    const updated = await saveCase(siteId, { add_note: input.value, author: "担当" });
+    input.value = "";
+    // メモ欄を更新
+    const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+    if (site) refreshCaseTab(site);
+  } catch(e) { alert("保存失敗: " + e.message); }
+}
+
+async function addQuickNote(siteId, text) {
+  try {
+    await saveCase(siteId, { add_note: text, author: "担当" });
+    const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+    if (site) refreshCaseTab(site);
+  } catch(e) { alert("保存失敗: " + e.message); }
+}
+
+function refreshCaseTab(site) {
+  const el = document.getElementById("caseTabContent");
+  if (el) el.innerHTML = renderCaseTab(site);
+}
+
+async function requestApproval(siteId) {
+  const urlInput = document.getElementById(`slackUrlInput-${siteId}`);
+  const url = urlInput?.value.trim();
+  if (!url) { alert("SlackスレッドURLを入力してください"); return; }
+
+  // URL検証
+  const btn = event.target;
+  btn.textContent = "確認中..."; btn.disabled = true;
+  const result = await validateSlackUrl(url);
+  btn.disabled = false;
+
+  if (!result.valid) {
+    alert("URLが無効です: " + result.reason);
+    btn.textContent = "📤 社長に承認依頼（SlackURL確認後テキスト生成）";
+    return;
+  }
+
+  // ステータス更新
+  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+  await saveCase(siteId, { status: "承認待ち", slack_thread_url: url });
+
+  // Slack貼り付けテキスト生成
+  const scores = calcCategoryScores(site, _currentHazard);
+  const overall = calcOverallScore(scores);
+  const text = `📋 BESS案件 承認依頼
+
+候補地: ${site.name}
+スコア: ${overall}点（立地:${scores.locationScore} 収益:${scores.revenueScore} 需要:${scores.demandScore} 規制:${scores.riskScore}）
+変電所距離: ${site.substationDist}m | 面積: ${site.area.toLocaleString()}㎡
+
+アプリで承認をお願いします:
+${window.location.href}
+
+このスレッドに紐付けています。ご確認の上 Go/見送りをアプリ上でお願いします。`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert("✅ URLを確認しました。\n承認依頼テキストをクリップボードにコピーしました。\nSlackスレッドに貼り付けてください。");
+  });
+  renderAll();
+  refreshCaseTab(site);
+}
+
+async function approveCase(siteId) {
+  if (!confirm("このBESS候補地へのアプローチをGo承認しますか？")) return;
+  await saveCase(siteId, { status: "アプローチ中", add_note: "社長Go承認", author: "社長" });
+  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+  renderAll();
+  if (site) refreshCaseTab(site);
+}
+
+async function rejectCase(siteId) {
+  const reason = prompt("見送り理由を入力してください（任意）:");
+  await saveCase(siteId, { status: "見送り", pass_reason: reason || "", add_note: "見送り" + (reason ? `（${reason}）` : ""), author: "社長" });
+  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+  renderAll();
+  if (site) refreshCaseTab(site);
+}
+
 // ===== モバイル：サイドバー制御 =====
 function toggleSidebar() {
   const sb = document.querySelector(".sidebar");
@@ -3881,6 +4188,7 @@ function initLegendBehavior() {
 
 // ===== 起動 =====
 initMap();
+if (USE_API) loadCaseMap();
 </script>
 </body>
 </html>

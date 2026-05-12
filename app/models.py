@@ -25,6 +25,24 @@ class Site(Base):
     lng = Column(Float)
 
 
+class SiteCase(Base):
+    """案件管理テーブル - 候補地ごとの社内ワークフロー管理"""
+    __tablename__ = "site_cases"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    site_id      = Column(Integer, nullable=False, index=True)
+    site_name    = Column(String)                        # 表示用（非正規化）
+    status       = Column(String, default="発見")         # 発見/精査中/承認待ち/アプローチ開始/交渉中/契約済/見送り
+    case_type    = Column(String, default="自社")         # 自社/パートナー依頼
+    assignee     = Column(String, default="")            # 担当者名
+    partner_name = Column(String, nullable=True)          # パートナー会社名（依頼時）
+    slack_thread_url = Column(String, nullable=True)      # 承認依頼紐付けSlackスレッドURL
+    pass_reason  = Column(String, nullable=True)          # 見送り理由
+    notes        = Column(String, default="[]")           # JSON: [{text, timestamp}]
+    created_at   = Column(String)
+    updated_at   = Column(String)
+
+
 class LandPricePoint(Base):
     __tablename__ = "land_price_points"
 
