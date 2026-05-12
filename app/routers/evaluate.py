@@ -1,7 +1,6 @@
 """
 住所・座標から土地のBESS適地ポテンシャルを総合評価するエンドポイント
 """
-import math
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -9,6 +8,7 @@ from typing import Optional
 from app.database import get_db
 from app import models
 from app.area_mapping import PREFECTURE_TO_AREA
+from app.utils import haversine
 
 router = APIRouter(prefix="/evaluate", tags=["evaluate"])
 
@@ -30,12 +30,7 @@ def detect_prefecture(address: str) -> str:
     return "東京都"  # フォールバック
 
 
-def haversine(lat1, lng1, lat2, lng2) -> float:
-    R = 6371000
-    dlat = math.radians(lat2 - lat1)
-    dlng = math.radians(lng2 - lng1)
-    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng/2)**2
-    return R * 2 * math.asin(math.sqrt(a))
+
 
 
 def nearest_substations(lat, lng, db, n=3):
@@ -52,12 +47,31 @@ def nearest_substations(lat, lng, db, n=3):
     ]
 
 
-def calc_score(substation_dist, area_m2, jepx, curtailment) -> int:
-    grid   = max(0, 100 - substation_dist / 50)
-    jepx_s = jepx.jepx_score if jepx else 50
-    ctrl_s = curtailment.curtailment_score if curtailment else 10
+def calc_score(substation_dist, area_m2, jepx, curtailment, solar=None, ev=None) -> int:
+    """
+    フロントエンドの calcCategoryScores() と同じロジックで4カテゴリスコアを計算。
+    デフォルト重みは立地30%・収益40%・需要15%・規制15%。
+    """
+    # 立地スコア
+    grid_s = max(0, 100 - substation_dist / 50)
     area_s = min(100, area_m2 / 100)
-    return round(grid * 0.4 + jepx_s * 0.3 + ctrl_s * 0.2 + area_s * 0.1)
+    location = round(grid_s * 0.6 + area_s * 0.4)
+
+    # 収益スコア
+    jepx_s   = jepx.jepx_score if jepx else 50
+    ctrl_s   = curtailment.curtailment_score if curtailment else 10
+    revenue  = round(jepx_s * 0.6 + ctrl_s * 0.4)
+
+    # 需要スコア
+    solar_s  = solar.solar_score if solar else 50
+    ev_s     = ev.ev_score if ev else 20
+    demand   = round(solar_s * 0.4 + ev_s * 0.6)
+
+    # 規制・リスクスコア（農地・洪水は住所評価では不明のため中間値）
+    risk = 60
+
+    # デフォルト重み（立地30・収益40・需要15・規制15）
+    return round(location * 0.30 + revenue * 0.40 + demand * 0.15 + risk * 0.15)
 
 
 @router.get("", summary="住所・座標からBESSポテンシャルを評価")
@@ -79,7 +93,7 @@ def evaluate(
     fit_solar   = db.get(models.FitSolarData,    jepx_area)
     solar       = db.get(models.SolarPotential,  prefecture)
 
-    score = calc_score(subst_dist, area_m2, jepx, curtailment)
+    score = calc_score(subst_dist, area_m2, jepx, curtailment, solar, ev)
 
     def to_dict(obj):
         if obj is None:

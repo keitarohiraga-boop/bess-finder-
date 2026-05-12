@@ -2,11 +2,11 @@
 周辺大口需要家・防災施設をOpenStreetMapから取得して評価するエンドポイント
 """
 import json
-import math
 import urllib.request
 import urllib.parse
 
 from fastapi import APIRouter, HTTPException, Query
+from app.utils import haversine
 
 router = APIRouter(prefix="/demand", tags=["demand"])
 
@@ -50,13 +50,6 @@ OVERPASS_QUERY = """
 out center;
 """
 
-
-def haversine(lat1, lng1, lat2, lng2) -> float:
-    R = 6371000
-    dlat = math.radians(lat2 - lat1)
-    dlng = math.radians(lng2 - lng1)
-    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng/2)**2
-    return R * 2 * math.asin(math.sqrt(a))
 
 
 def classify(tags: dict) -> str | None:

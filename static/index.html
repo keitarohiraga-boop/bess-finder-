@@ -1393,6 +1393,7 @@ async function renderAll() {
 
     try {
       const res = await fetch(`${API_BASE}/sites?${params}`);
+      if (!res.ok) throw new Error(`sites API error: ${res.status}`);
       const data = await res.json();
       allSites = data.map(normalizeApiSite);
     } catch (e) {
@@ -2566,7 +2567,7 @@ async function loadLandPrice(lat, lng, containerId) {
   if (!el) return;
   try {
     const res = await fetch(`${API_BASE}/reinfolib/landprice?lat=${lat}&lng=${lng}&year=2025`);
-    if (!res.ok) return;
+    if (!res.ok) throw new Error(`landprice API error: ${res.status}`);
     const d = await res.json();
     if (!d.nearest) {
       el.innerHTML = `<div style="font-size:11px;color:#475569">近隣の地価公示データなし</div>`;

@@ -10,41 +10,41 @@ from app.area_mapping import PREFECTURE_TO_AREA
 router = APIRouter(prefix="/sites", tags=["sites"])
 
 
-def _attach_extras(site: models.Site, db: Session) -> schemas.SiteOut:
+def _build_lookup_maps(db: Session) -> dict:
+    """エリア別マスターデータを一括取得してキャッシュ（N+1対策）"""
+    return {
+        "jepx":        {r.area: r for r in db.query(models.JepxAreaMetrics).all()},
+        "solar":       {r.prefecture: r for r in db.query(models.SolarPotential).all()},
+        "curtailment": {r.area: r for r in db.query(models.CurtailmentData).all()},
+        "fit_solar":   {r.area: r for r in db.query(models.FitSolarData).all()},
+        "outage":      {r.area: r for r in db.query(models.OutageRiskData).all()},
+        "ev":          {r.prefecture: r for r in db.query(models.EVAdoptionData).all()},
+    }
+
+
+def _attach_extras(site: models.Site, maps: dict) -> schemas.SiteOut:
+    """ルックアップマップからエリアデータを付加（DBアクセスなし）"""
     d = schemas.SiteOut.model_validate(site)
 
-    if site.prefecture:
-        # JEPXメトリクス
-        area = PREFECTURE_TO_AREA.get(site.prefecture)
-        if area:
-            jepx = db.get(models.JepxAreaMetrics, area)
-            if jepx:
-                d.jepx = schemas.JepxMetrics.model_validate(jepx)
+    if not site.prefecture:
+        return d
 
-        # 太陽光ポテンシャル
-        solar = db.get(models.SolarPotential, site.prefecture)
-        if solar:
-            d.solar = schemas.SolarOut.model_validate(solar)
+    area = PREFECTURE_TO_AREA.get(site.prefecture)
 
-        # 出力制御データ
-        curtailment = db.get(models.CurtailmentData, area) if area else None
-        if curtailment:
+    if area:
+        if jepx := maps["jepx"].get(area):
+            d.jepx = schemas.JepxMetrics.model_validate(jepx)
+        if curtailment := maps["curtailment"].get(area):
             d.curtailment = schemas.CurtailmentOut.model_validate(curtailment)
-
-        # FIT太陽光データ
-        fit_solar = db.get(models.FitSolarData, area) if area else None
-        if fit_solar:
+        if fit_solar := maps["fit_solar"].get(area):
             d.fit_solar = schemas.FitSolarOut.model_validate(fit_solar)
-
-        # 停電リスク
-        outage = db.get(models.OutageRiskData, area) if area else None
-        if outage:
+        if outage := maps["outage"].get(area):
             d.outage = schemas.OutageRiskOut.model_validate(outage)
 
-        # EV普及率
-        ev = db.get(models.EVAdoptionData, site.prefecture) if site.prefecture else None
-        if ev:
-            d.ev = schemas.EVAdoptionOut.model_validate(ev)
+    if solar := maps["solar"].get(site.prefecture):
+        d.solar = schemas.SolarOut.model_validate(solar)
+    if ev := maps["ev"].get(site.prefecture):
+        d.ev = schemas.EVAdoptionOut.model_validate(ev)
 
     return d
 
@@ -76,8 +76,10 @@ def list_sites(
         models.Site.slope <= slope_max,
     ).order_by(models.Site.score.desc())
 
+    # マスターデータを一括取得（クエリ数を固定: 6本）
+    maps = _build_lookup_maps(db)
     sites = db.execute(stmt).scalars().all()
-    return [_attach_extras(s, db) for s in sites]
+    return [_attach_extras(s, maps) for s in sites]
 
 
 @router.get("/{site_id}", response_model=schemas.SiteOut)
@@ -85,4 +87,5 @@ def get_site(site_id: int, db: Session = Depends(get_db)):
     site = db.get(models.Site, site_id)
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
-    return _attach_extras(site, db)
+    maps = _build_lookup_maps(db)
+    return _attach_extras(site, maps)

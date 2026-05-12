@@ -3,8 +3,9 @@
 - 洪水浸水想定区域（XKT026）
 - 土砂災害警戒区域（XKT029）
 """
+import gzip
+import io
 import json
-import math
 import os
 import urllib.request
 
@@ -12,6 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from shapely.geometry import Point, shape
 from app.database import get_db
+from app import models
+from app.utils import haversine
 
 router = APIRouter(prefix="/reinfolib", tags=["reinfolib"])
 
@@ -74,14 +77,6 @@ def _guess_pref_code(lat: float, lng: float) -> str:
             return code
     return "13"  # デフォルト: 東京
 BASE_URL = "https://www.reinfolib.mlit.go.jp/ex-api/external"
-
-
-def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    R = 6371000
-    dlat = math.radians(lat2 - lat1)
-    dlng = math.radians(lng2 - lng1)
-    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng/2)**2
-    return R * 2 * math.asin(math.sqrt(a))
 
 
 def latlon_to_tile(lat: float, lng: float, z: int = 14) -> tuple[int, int]:
@@ -173,12 +168,12 @@ def get_landprice(
     lng: float = Query(...),
     db: Session = Depends(get_db),
 ):
-    from app import models as m
+    # models は冒頭でインポート済み
 
     # ±0.3度以内の地価公示点を検索
-    candidates = db.query(m.LandPricePoint).filter(
-        m.LandPricePoint.lat.between(lat - 0.3, lat + 0.3),
-        m.LandPricePoint.lng.between(lng - 0.3, lng + 0.3),
+    candidates = db.query(models.LandPricePoint).filter(
+        models.LandPricePoint.lat.between(lat - 0.3, lat + 0.3),
+        models.LandPricePoint.lng.between(lng - 0.3, lng + 0.3),
     ).all()
 
     if not candidates:

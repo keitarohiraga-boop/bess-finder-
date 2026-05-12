@@ -18,11 +18,20 @@ TERRAIN_RISK = {
 }
 
 def arv_to_score(arv: float | None, terrain: str) -> int:
-    """表層地盤増幅率と微地形分類から地震リスクスコア（100=安全）を算出"""
+    """
+    表層地盤増幅率（ARV）と微地形分類から地震リスクスコア（100=安全）を算出。
+
+    ARV閾値の根拠:
+    - ARV≤1.5: 岩盤・硬質地盤（増幅ほぼなし） → 92点
+    - ARV≤2.5: 一般的な台地・段丘 → 78点
+    - ARV≤3.5: 軟弱な沖積地盤 → 58点
+    - ARV≤5.0: 液状化リスクあり → 38点
+    - ARV>5.0 : 埋立地・後背湿地等 → 18点
+    出典: 防災科学技術研究所 J-SHIS 表層地盤情報技術資料
+    """
     if arv is None:
         return 50
 
-    # ARVベーススコア
     if arv <= 1.5:
         score = 92
     elif arv <= 2.5:
@@ -34,9 +43,9 @@ def arv_to_score(arv: float | None, terrain: str) -> int:
     else:
         score = 18
 
-    # 微地形分類でペナルティ補正
+    # 微地形分類でペナルティ補正（リスクレベル3=標準、1-2=良好、4-5=劣悪）
     risk = TERRAIN_RISK.get(terrain, 3)
-    penalty = (risk - 3) * 5
+    penalty = (risk - 3) * 5  # リスク1段階ごとに±5点
     return max(5, min(100, score - penalty))
 
 
