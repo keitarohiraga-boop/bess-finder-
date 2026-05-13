@@ -623,6 +623,10 @@
     </div>
     <span style="color:#64748b">提案用</span>
   </div>
+  <button onclick="openChangelogModal()"
+    style="background:#1e293b;border:1px solid #475569;color:#94a3b8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
+    📋 更新履歴
+  </button>
   <button onclick="openLogicModal()"
     style="margin-left:auto;background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
     📊 分析ロジック・データ出典
@@ -972,6 +976,21 @@
             ※ 重みは⚙️重みづけパネルでリアルタイムに変更できます（デフォルト: 立地30%・収益40%・需要15%・規制15%）。
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 更新履歴モーダル -->
+    <div id="changelogModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:400;align-items:center;justify-content:center;backdrop-filter:blur(4px)"
+      onclick="if(event.target===this)closeChangelogModal()">
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:680px;max-width:96vw;max-height:88vh;overflow-y:auto;padding:28px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <div style="font-size:18px;font-weight:700;color:#e2e8f0">📋 更新履歴</div>
+            <div style="font-size:11px;color:#64748b;margin-top:3px">機能追加・改善・修正の記録</div>
+          </div>
+          <button onclick="closeChangelogModal()" style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
+        </div>
+        <div id="changelogContent"></div>
       </div>
     </div>
 
@@ -2711,6 +2730,114 @@ function showEvalResult(d, hazard, title, area_m2) {
   loadEarthquakeHazard({ lat: d.lat, lng: d.lng, id: "eval" });
   loadFloodHazard(d.lat, d.lng, "evalFloodHazard");
   loadDemandFacilities(d.lat, d.lng, "evalDemandFacilities");
+}
+
+// ===== 更新履歴 =====
+const CHANGELOG = [
+  {
+    version: "1.6.0", date: "2026-05-13",
+    entries: [
+      { type: "✨", name: "案件管理機能",
+        what: "候補地ごとにステータス・担当・メモを記録し、社長への承認依頼テキストを自動生成",
+        why: "発見から契約までの社内ワークフローをアプリ内で一元管理するため" },
+      { type: "✨", name: "プレゼンモード",
+        what: "ヘッダーのトグルで社内情報（ステータス・メモ・案件化ボタン）を非表示にできる",
+        why: "商談時にクライアントに画面を見せる際に内部情報を隠すため" },
+      { type: "✨", name: "重みづけの永続化",
+        what: "スコアの重みづけ設定がブラウザ再読込後も保持される",
+        why: "毎回設定し直す手間を省き、個人の分析軸を維持するため" },
+      { type: "✨", name: "IRR・収益順ソート",
+        what: "候補地をIRR概算順・収益スコア順で並べ替えられる",
+        why: "投資判断の軸（収益性）で候補を素早く絞り込むため" },
+      { type: "✨", name: "案件ステータスフィルター",
+        what: "左パネルを「精査中のみ」「承認待ちのみ」など案件の進捗で絞り込める",
+        why: "対応中の案件だけを素早く確認するため" },
+      { type: "✨", name: "フィルター折りたたみ",
+        what: "条件フィルターを閉じると候補地リストが全画面に広がる",
+        why: "候補地一覧を広く見たいときに画面を有効活用するため" },
+      { type: "✨", name: "地価の参考確度表示",
+        what: "公示地価の調査地点までの距離・地目・参考確度（高/中/低）を表示",
+        why: "地価データの信頼性を一目で判断できるようにするため" },
+    ]
+  },
+  {
+    version: "1.5.0", date: "2026-05-10",
+    entries: [
+      { type: "✨", name: "洪水・土砂ハザード実データ統合",
+        what: "国土交通省の不動産情報ライブラリから洪水・土砂災害リスクの実データを自動取得",
+        why: "サンプルデータから脱却し、実際の候補地のリスクを正確に評価するため" },
+      { type: "✨", name: "地価公示実データ統合",
+        what: "全国47都道府県の地価公示データをDBにキャッシュし候補地詳細に表示",
+        why: "土地取得コストの根拠ある参考値をシミュレーターに反映するため" },
+      { type: "✨", name: "停電リスク・EV普及率スコア",
+        what: "エリア別の停電リスク（SAIDI）とEV普及率を評価軸に追加",
+        why: "非常用電源・V2G需要ポテンシャルを定量化するため" },
+      { type: "✨", name: "購入/リース切り替えシミュレーター",
+        what: "土地取得コストを購入・リースで切り替えてIRR/NPVに反映できる",
+        why: "土地の保有形態によって変わる資本コストを正しく評価するため" },
+    ]
+  },
+  {
+    version: "1.4.0", date: "2026-05-08",
+    entries: [
+      { type: "✨", name: "IRR・NPV・20年キャッシュフロー",
+        what: "収益シミュレーターにIRR・NPV・月次収益分布チャート・感度分析を追加",
+        why: "投資家・金融機関が重視する指標で評価できるようにするため" },
+      { type: "✨", name: "PDFレポート・HTML出力",
+        what: "4ページ構成のPDFレポートと社内共有用HTMLをワンクリックで出力（著作権・免責記載付き）",
+        why: "投資検討資料と社内共有を効率化するため" },
+      { type: "✨", name: "住所でBESSポテンシャル評価",
+        what: "住所を入力すると地図上にピンが立ち、その土地のBESS適性を自動診断",
+        why: "土地所有者からの提案にすぐ対応できるようにするため" },
+    ]
+  },
+  {
+    version: "1.3.0", date: "2026-05-03",
+    entries: [
+      { type: "✨", name: "タブ構成・スコア重みづけ",
+        what: "右パネルを立地/収益/需要/規制の4タブに整理。重みをスライダーで調整可能",
+        why: "分析の軸を案件ごとに柔軟に変えられるようにするため" },
+      { type: "✨", name: "J-SHIS地震・地盤リスク",
+        what: "防災科学技術研究所のAPIから地盤増幅率・微地形分類をリアルタイム取得",
+        why: "設備の物理的リスクを客観データで評価するため" },
+      { type: "✨", name: "BESS市場密度コロプレスマップ",
+        what: "都道府県境界に合わせたBESS接続検討量のヒートマップを地図表示",
+        why: "どのエリアのBESS市場が成熟しているかを把握するため" },
+    ]
+  },
+  {
+    version: "1.0.0", date: "2026-04-28",
+    entries: [
+      { type: "✨", name: "初期リリース",
+        what: "JEPX・容量市場・出力制御・FIT・日射量・変電所・農地（サンプル）によるスコアリング",
+        why: "BESSの建設候補地を多角的なデータから効率よく探索するため" },
+    ]
+  },
+];
+
+function openChangelogModal() {
+  const el = document.getElementById("changelogContent");
+  if (el) {
+    el.innerHTML = CHANGELOG.map((v, vi) => `
+      ${vi > 0 ? '<div style="border-top:1px solid #334155;margin-bottom:20px"></div>' : ""}
+      <div style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="background:#0f172a;border:1px solid #38bdf8;color:#38bdf8;font-size:12px;font-weight:700;padding:2px 10px;border-radius:4px">v${v.version}</span>
+          <span style="font-size:12px;color:#64748b">${v.date}</span>
+        </div>
+        ${v.entries.map(e => `
+          <div style="border:1px solid #1e293b;border-radius:8px;padding:10px 14px;margin-bottom:8px">
+            <div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:4px">${e.type} ${e.name}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-bottom:3px"><span style="color:#38bdf8">できること：</span>${e.what}</div>
+            <div style="font-size:11px;color:#64748b"><span style="color:#64748b">目的：</span>${e.why}</div>
+          </div>`).join("")}
+      </div>
+    `).join("");
+  }
+  document.getElementById("changelogModal").style.display = "flex";
+}
+function closeChangelogModal() {
+  document.getElementById("changelogModal").style.display = "none";
 }
 
 function openLogicModal() {
