@@ -696,11 +696,24 @@
       </div>
     </div>
 
+    <!-- 案件ステータスフィルター（社内モードのみ） -->
+    <div class="case-only" style="padding:8px 16px;border-top:1px solid #1e293b;display:flex;gap:4px;flex-wrap:wrap">
+      <button class="case-status-filter active" data-status="" onclick="setCaseFilter(this,'')"
+        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#334155;color:#e2e8f0;cursor:pointer">すべて</button>
+      <button class="case-status-filter" data-status="未登録" onclick="setCaseFilter(this,'未登録')"
+        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">📍未登録</button>
+      ${["精査中","承認待ち","アプローチ中","契約済","見送り"].map(s=>`
+      <button class="case-status-filter" data-status="${s}" onclick="setCaseFilter(this,'${s}')"
+        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">${STATUS_EMOJI[s]||""}${s}</button>`).join("")}
+    </div>
+
     <!-- 結果数 -->
     <div class="result-header">
       <div class="result-count"><span id="resultCount">0</span>件 の候補地</div>
       <select class="sort-select" id="sortSelect">
         <option value="score">スコア順</option>
+        <option value="irr">IRR概算順</option>
+        <option value="revenue">収益スコア順</option>
         <option value="area">面積順</option>
         <option value="distance">変電所距離順</option>
       </select>
@@ -1287,6 +1300,19 @@ let filters = {
   areaMin: 1000,
   slopeMax: 5,
 };
+// ----- 案件ステータスフィルター -----
+let caseStatusFilter = ""; // "" = すべて表示
+
+function setCaseFilter(btn, status) {
+  caseStatusFilter = status;
+  document.querySelectorAll(".case-status-filter").forEach(b => {
+    const isActive = b.dataset.status === status;
+    b.style.background = isActive ? "#334155" : "#0f172a";
+    b.style.color = isActive ? "#e2e8f0" : "#64748b";
+  });
+  renderAll();
+}
+
 // ----- 地図・UI状態 -----
 let map = null;           // MapLibreインスタンス（initMap()で初期化）
 let selectedSiteId = null; // 選択中の候補地ID
@@ -1628,13 +1654,15 @@ async function renderAll() {
       const wb = calcOverallScore(calcCategoryScores(b, null));
       return wb - wa;
     }
-    if (sortBy === "area") return b.area - a.area;
+    if (sortBy === "irr")     return estimateIRR(b) - estimateIRR(a);
+    if (sortBy === "revenue") return (calcCategoryScores(b,null).revenueScore) - (calcCategoryScores(a,null).revenueScore);
+    if (sortBy === "area")    return b.area - a.area;
     if (sortBy === "distance") return a.substationDist - b.substationDist;
     return 0;
   });
 
   currentSites = visible;
-  document.getElementById("resultCount").textContent = visible.length;
+  // resultCountはrenderSiteList側でフィルター後の件数を表示
 
   // 地図更新
   if (map && map.getSource("sites")) {
@@ -1648,11 +1676,24 @@ async function renderAll() {
 function renderSiteList(sites) {
   const el = document.getElementById("siteList");
   el.innerHTML = "";
-  if (sites.length === 0) {
+
+  // ③ 案件ステータスフィルター適用（社内モードのみ有効）
+  let filtered = sites;
+  if (!_isPresentMode && caseStatusFilter !== "") {
+    if (caseStatusFilter === "未登録") {
+      filtered = sites.filter(s => !_caseMap[s.id]);
+    } else {
+      filtered = sites.filter(s => _caseMap[s.id]?.status === caseStatusFilter);
+    }
+  }
+
+  document.getElementById("resultCount").textContent = filtered.length;
+
+  if (filtered.length === 0) {
     el.innerHTML = '<div style="padding:20px;text-align:center;color:#475569;font-size:13px">条件を満たす候補地がありません</div>';
     return;
   }
-  sites.forEach(s => {
+  filtered.forEach(s => {
     const ws = calcOverallScore(calcCategoryScores(s, null));
     const cls = ws >= 80 ? "score-high" : ws >= 50 ? "score-mid" : "score-low";
     const chipFlood = s.flood === "none" ? "chip-ok" : s.flood === "low" ? "chip-warn" : "chip-ng";
@@ -1714,6 +1755,22 @@ function selectSite(id) {
 
   // 詳細パネル
   showDetail(site);
+}
+
+// ② IRR概算（最適プリセットベース・DOM不要・ソート用途）
+function estimateIRR(site) {
+  try {
+    const p = calcOptimalPreset(site);
+    const cap_kwh = p.cap_mwh * 1000;
+    const power_kw = p.power_mw * 1000;
+    const spread = site.jepx?.spread ?? 5.0;
+    const area = site.jepx?.area ?? "東京";
+    const capPrice = getCapacityPrice(area, CAPACITY_YEARS[CAPACITY_YEARS.length-1]).price;
+    const rev = spread * cap_kwh * 300 * 0.88 + power_kw * capPrice + power_kw * 2000;
+    const capex = p.unit_price * 10000 * cap_kwh;
+    const net = rev - capex * 0.02;
+    return calcIRR(calc20YearCF(net, capex));
+  } catch { return 0; }
 }
 
 // ===== スコア計算 =====
@@ -1816,8 +1873,9 @@ function updateWeights() {
   totEl.textContent = `合計: ${total}%`;
   totEl.style.color = total === 100 ? "#4ade80" : "#f87171";
   WEIGHTS = { location: vals[0], revenue: vals[1], demand: vals[2], risk: vals[3] };
+  localStorage.setItem('bessWeights', JSON.stringify(WEIGHTS)); // 永続化
   updateScoreDisplay();
-  renderAll(); // 左パネルのスコア・順位も更新
+  renderAll();
 }
 function applyPreset(key) {
   const p = PRESETS[key];
@@ -4305,6 +4363,21 @@ function initLegendBehavior() {
 }
 
 // ===== 起動 =====
+// ① 重みづけをlocalStorageから復元
+function loadSavedWeights() {
+  try {
+    const saved = localStorage.getItem('bessWeights');
+    if (!saved) return;
+    const w = JSON.parse(saved);
+    WEIGHTS = w;
+    const map = { wLoc: w.location, wRev: w.revenue, wDem: w.demand, wRisk: w.risk };
+    const lblMap = { wLocVal: w.location, wRevVal: w.revenue, wDemVal: w.demand, wRiskVal: w.risk };
+    Object.entries(map).forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.value = v; });
+    Object.entries(lblMap).forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.textContent = v; });
+    document.getElementById("weightTotal").textContent = `合計: ${Object.values(w).reduce((a,b)=>a+b,0)}%`;
+  } catch(e) { console.warn("重みづけ復元失敗:", e); }
+}
+loadSavedWeights();
 initMap();
 if (USE_API) loadCaseMap();
 </script>
