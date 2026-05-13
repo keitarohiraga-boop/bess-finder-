@@ -607,29 +607,32 @@
     style="background:#0ea5e9;border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">
     🔍 住所で評価
   </button>
-  <button onclick="toggleWeightPanel()"
-    style="background:#1e293b;border:1px solid #475569;color:#94a3b8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
-    ⚙️ 重みづけ
-  </button>
-  <!-- 承認待ちバッジ -->
-  <button id="pendingBadge" onclick="showPendingCases()" style="display:none;background:#92400e;border:1px solid #f59e0b;color:#fbbf24;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">
-    ⏳ 承認待ち <span id="pendingCount">0</span>件
-  </button>
-  <!-- プレゼンモードトグル -->
-  <div style="display:flex;align-items:center;gap:6px;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:4px 10px;font-size:11px">
-    <span style="color:#64748b">社内</span>
-    <div id="presentToggle" onclick="togglePresentMode()" style="width:32px;height:18px;background:#334155;border-radius:9px;cursor:pointer;position:relative;transition:background 0.2s">
-      <div id="presentToggleDot" style="width:14px;height:14px;background:#64748b;border-radius:50%;position:absolute;top:2px;left:2px;transition:left 0.2s"></div>
+
+  <!-- 情報メニュー（重みづけ・分析ロジック・更新履歴をまとめる） -->
+  <div style="position:relative" data-info-menu>
+    <button id="infoMenuBtn" onclick="toggleInfoMenu()"
+      style="background:#1e293b;border:1px solid #475569;color:#94a3b8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
+      ℹ️ 情報メニュー ▾
+    </button>
+    <div id="infoMenuDropdown" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:#1e293b;border:1px solid #334155;border-radius:8px;min-width:200px;z-index:300;box-shadow:0 4px 16px rgba(0,0,0,0.5);overflow:hidden">
+      <button onclick="toggleWeightPanel();closeInfoMenu()"
+        style="display:block;width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid #334155;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
+        ⚙️ 重みづけ設定
+      </button>
+      <button onclick="openLogicModal();closeInfoMenu()"
+        style="display:block;width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid #334155;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
+        📊 分析ロジック・制度カレンダー
+      </button>
+      <button onclick="openChangelogModal();closeInfoMenu()"
+        style="display:block;width:100%;padding:10px 16px;background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
+        📋 更新履歴
+      </button>
     </div>
-    <span style="color:#64748b">提案用</span>
   </div>
-  <button onclick="openChangelogModal()"
-    style="background:#1e293b;border:1px solid #475569;color:#94a3b8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
-    📋 更新履歴
-  </button>
-  <button onclick="openLogicModal()"
-    style="margin-left:auto;background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
-    📊 分析ロジック・データ出典
+
+  <!-- 承認待ちバッジ（動的・位置固定） -->
+  <button id="pendingBadge" onclick="showPendingCases()" style="display:none;background:#92400e;border:1px solid #f59e0b;color:#fbbf24;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600;margin-left:auto">
+    ⏳ 承認待ち <span id="pendingCount">0</span>件
   </button>
 </header>
 
@@ -725,6 +728,19 @@
         style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">✅ 契約済</button>
       <button class="case-status-filter" data-status="見送り" onclick="setCaseFilter(this,'見送り')"
         style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">❌ 見送り</button>
+    </div>
+
+    <!-- 社内⇄提案モード切替（左パネル内・常時表示） -->
+    <div style="padding:8px 16px;border-top:1px solid #1e293b;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:11px;color:#64748b">表示モード</span>
+      <div style="display:flex;align-items:center;gap:8px;font-size:11px">
+        <span id="presentLabelSidebar" style="color:#94a3b8">社内</span>
+        <div id="presentToggle" onclick="togglePresentMode()"
+          style="width:36px;height:20px;background:#334155;border-radius:10px;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0">
+          <div id="presentToggleDot" style="width:16px;height:16px;background:#64748b;border-radius:50%;position:absolute;top:2px;left:2px;transition:left 0.2s"></div>
+        </div>
+        <span style="font-size:11px;color:#64748b">提案用</span>
+      </div>
     </div>
 
     <!-- 結果数 -->
@@ -839,6 +855,20 @@
             style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
         </div>
 
+        <!-- タブ切り替え -->
+        <div style="display:flex;border-bottom:1px solid #334155;margin-bottom:16px;gap:2px">
+          <button id="logicTab-data" onclick="switchLogicTab('data')"
+            style="padding:8px 16px;background:none;border:none;border-bottom:2px solid #38bdf8;color:#38bdf8;font-size:12px;font-weight:600;cursor:pointer">
+            📊 データソース
+          </button>
+          <button id="logicTab-cal" onclick="switchLogicTab('cal')"
+            style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;font-size:12px;font-weight:600;cursor:pointer">
+            📅 制度カレンダー
+          </button>
+        </div>
+
+        <!-- データソースタブ -->
+        <div id="logicContent-data">
         <!-- スコア計算の全体像 -->
         <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:20px;font-size:12px;color:#94a3b8;line-height:1.8">
           <span style="color:#38bdf8;font-weight:600">総合スコアの構成：</span>
@@ -2540,6 +2570,15 @@ function renderLogicTable() {
         <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:${s.status === '稼働中' ? '#14532d' : '#713f12'};color:${s.status === '稼働中' ? '#4ade80' : '#fbbf24'}">${s.status}</span>
         ${s.confidence ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;margin-left:3px;background:#1e3a5f;color:#38bdf8">信頼度：${s.confidence}</span>` : ""}
         ${s.lastUpdated ? `<div style="font-size:10px;color:#475569;margin-top:3px">最終：${s.lastUpdated}</div>` : ""}
+        ${(() => {
+          // 制度カレンダーイベントで影響するものがあれば強調バッジを表示
+          const relevant = REGULATION_EVENTS.filter(e =>
+            isEventHighlighted(e.date) && e.affects?.some(a => s.metric?.includes(a.split("（")[0]) || s.impact?.includes(a.split("（")[0]))
+          );
+          return relevant.length > 0
+            ? `<div style="margin-top:4px"><span style="font-size:9px;background:#92400e;color:#fbbf24;padding:1px 6px;border-radius:3px">⚠️ 関連制度変更あり → 制度カレンダーを確認</span></div>`
+            : "";
+        })()}
       </td>
     </tr>
   `).join("");
@@ -2827,6 +2866,103 @@ const CHANGELOG = [
   },
 ];
 
+// ===== 制度変更カレンダー =====
+const REGULATION_EVENTS = [
+  // ── スコアへの影響が高いイベント ──
+  { date:"2026-04-01", category:"データ更新", impact:"high", recurring:true,
+    title:"JEPX年次データ・出力制御率データ更新",
+    description:"前年度のJEPXスポット価格・出力制御実績が公表される。アプリのJEPXスコア・BESSニーズスコアのデータ更新を推奨。",
+    affects:["JEPXスコア","BESSニーズスコア"], source:"日本卸電力取引所・資源エネルギー庁" },
+  { date:"2026-06-03", date_end:"2026-06-15", category:"市場制度", impact:"high",
+    title:"容量市場メインオークション 応札受付（2027年度向け）",
+    description:"BESS参加要件: 1MW以上・3時間放電。約定価格はアプリのシミュレーターに反映必要。",
+    affects:["容量市場収益","収益シミュレーター"], source:"OCCTO", url:"https://www.occto.or.jp/" },
+  { date:"2026-07-31", category:"市場制度", impact:"high",
+    title:"容量市場オークション結果発表（2027年度）",
+    description:"新しい約定価格が確定。アプリのCAPACITY_MARKETデータを更新することでシミュレーター精度が上がる。",
+    affects:["容量市場収益","収益シミュレーター"], source:"OCCTO", url:"https://www.occto.or.jp/" },
+  { date:"2027-02-01", category:"市場制度", impact:"high", recurring:true,
+    title:"長期脱炭素電源オークション（次回予定）",
+    description:"20年間固定収入。BESSは「蓄電池」として参加可能。入札機会を逃さないこと。",
+    affects:["長期脱炭素収益","収益シミュレーター"], source:"OCCTO" },
+  { date:"2027-03-01", category:"データ更新", impact:"medium", recurring:true,
+    title:"地価公示発表",
+    description:"基準日1月1日の地価公示が3月発表。地価DBキャッシュの更新を推奨。",
+    affects:["地価公示スコア","シミュレーター土地コスト"], source:"国土交通省" },
+  // ── 補助金・制度 ──
+  { date:"2026-04-15", date_end:"2026-05-09", category:"補助金", impact:"medium",
+    title:"系統用蓄電池支援事業 公募（経産省・令和7年度補正）",
+    description:"補助率1/3〜2/3、上限40億円。CAPEX削減でIRRが大幅改善する可能性あり。",
+    affects:["収益シミュレーター（実質CAPEX減）"], source:"資源エネルギー庁", url:"https://www.enecho.meti.go.jp/" },
+  { date:"2026-05-01", category:"制度", impact:"medium", recurring:true,
+    title:"再エネ賦課金改定（令和8年度: 4.18円/kWh）",
+    description:"2026年5月検針分から適用。電力市場価格環境への間接影響。",
+    affects:["JEPX市場環境"], source:"資源エネルギー庁" },
+  { date:"2026-04-23", date_end:"2026-05-27", category:"補助金", impact:"medium",
+    title:"地域脱炭素推進交付金 公募（環境省）",
+    description:"脱炭素先行地域での蓄電池設置を支援。自治体連携案件に有効。",
+    affects:["政策スコア"], source:"環境省", url:"https://policies.env.go.jp/policy/roadmap/grants/" },
+  // ── 制度変更（施行済み） ──
+  { date:"2026-03-14", category:"市場制度", impact:"high",
+    title:"需給調整市場 上限価格引き下げ・30分コマ化（施行済み）",
+    description:"三次調整力等の上限価格が大幅引き下げ。系統用蓄電池の需給調整収益に直接影響。アプリのrev_reg（2,000円/kW/年）は要確認。",
+    affects:["需給調整収益","収益シミュレーター"], source:"需給調整力取引所", url:"https://www.eprx.or.jp/" },
+  // ── 展示会・業界イベント ──
+  { date:"2026-05-27", date_end:"2026-05-29", category:"展示会", impact:"low",
+    title:"JECA FAIR 2026",
+    description:"東京ビッグサイト。電気設備・蓄電池の最新動向・ネットワーキング。",
+    affects:[], source:"JECA", url:"https://www.jecafair.jp/" },
+  { date:"2026-09-09", date_end:"2026-09-11", category:"展示会", impact:"low",
+    title:"SMART ENERGY WEEK 秋展",
+    description:"幕張メッセ。世界最大規模の新エネルギー総合展。",
+    affects:[], source:"RX Japan", url:"https://www.wsew.jp/autumn/ja-jp.html" },
+  { date:"2026-11-18", date_end:"2026-11-20", category:"展示会", impact:"low",
+    title:"SMART ENERGY WEEK 関西展",
+    description:"インテックス大阪。",
+    affects:[], source:"RX Japan" },
+  { date:"2027-03-24", date_end:"2027-03-26", category:"展示会", impact:"low",
+    title:"SMART ENERGY WEEK 春展",
+    description:"東京ビッグサイト。",
+    affects:[], source:"RX Japan" },
+];
+
+function isEventHighlighted(eventDate) {
+  const now = new Date();
+  const prevMonth1st = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const future60 = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const d = new Date(eventDate);
+  return d >= prevMonth1st && d <= future60;
+}
+
+function renderCalendarTab() {
+  const CAT_COLOR = { "データ更新":"#38bdf8", "市場制度":"#4ade80", "補助金":"#fbbf24", "制度":"#94a3b8", "展示会":"#a78bfa" };
+  const IMP_COLOR = { high:"#f87171", medium:"#fbbf24", low:"#475569" };
+  const now = new Date();
+
+  return REGULATION_EVENTS.sort((a, b) => new Date(a.date) - new Date(b.date)).map(e => {
+    const d = new Date(e.date);
+    const isPast = d < now;
+    const isHL = isEventHighlighted(e.date);
+    const dateStr = d.toLocaleDateString("ja-JP", {year:"numeric",month:"2-digit",day:"2-digit"});
+    const endStr = e.date_end ? ` 〜 ${new Date(e.date_end).toLocaleDateString("ja-JP",{month:"2-digit",day:"2-digit"})}` : "";
+    return `
+      <div style="border:1px solid ${isHL?'#fbbf24':'#334155'};border-radius:8px;padding:10px 14px;margin-bottom:8px;background:${isHL?'#1a1500':'#0f172a22'};${isPast?'opacity:0.7':''}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div>
+            ${isHL?'<span style="font-size:9px;background:#92400e;color:#fbbf24;padding:1px 6px;border-radius:3px;margin-right:6px">⚠️ 直近</span>':''}
+            <span style="font-size:10px;padding:1px 7px;border-radius:3px;background:#1e293b;color:${CAT_COLOR[e.category]||'#94a3b8'}">${e.category}</span>
+          </div>
+          <span style="font-size:10px;color:${IMP_COLOR[e.impact]}">影響: ${e.impact==='high'?'高':e.impact==='medium'?'中':'低'}</span>
+        </div>
+        <div style="font-size:12px;font-weight:600;color:#e2e8f0;margin-bottom:3px">${e.title}${e.recurring?'<span style="font-size:9px;color:#475569;margin-left:4px">（毎年）</span>':''}</div>
+        <div style="font-size:10px;color:#64748b;margin-bottom:5px">${dateStr}${endStr}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:5px">${e.description}</div>
+        ${e.affects.length > 0 ? `<div style="font-size:10px;color:#475569">影響指標: ${e.affects.join(' / ')}</div>` : ''}
+        ${e.url ? `<a href="${e.url}" target="_blank" rel="noopener" style="font-size:10px;color:#38bdf8;text-decoration:none">出典: ${e.source} ↗</a>` : `<div style="font-size:10px;color:#475569">出典: ${e.source}</div>`}
+      </div>`;
+  }).join("");
+}
+
 function openChangelogModal() {
   const el = document.getElementById("changelogContent");
   if (el) {
@@ -2852,10 +2988,37 @@ function closeChangelogModal() {
   document.getElementById("changelogModal").style.display = "none";
 }
 
+function switchLogicTab(name) {
+  ["data","cal"].forEach(t => {
+    const btn = document.getElementById(`logicTab-${t}`);
+    const content = document.getElementById(`logicContent-${t}`);
+    const isActive = t === name;
+    if (btn) { btn.style.borderBottomColor = isActive ? "#38bdf8" : "transparent"; btn.style.color = isActive ? "#38bdf8" : "#64748b"; }
+    if (content) content.style.display = isActive ? "block" : "none";
+  });
+  if (name === "cal") {
+    const el = document.getElementById("calendarContent");
+    if (el) el.innerHTML = renderCalendarTab();
+  }
+}
+
 function openLogicModal() {
   renderLogicTable();
-  const m = document.getElementById("logicModal");
-  m.style.display = "flex";
+  // カレンダータブの中身を初期化
+  const calContent = document.getElementById("logicContent-cal");
+  if (!calContent) {
+    // 制度カレンダータブが未追加なら追加
+    const dataContent = document.getElementById("logicContent-data");
+    if (dataContent) {
+      const calDiv = document.createElement("div");
+      calDiv.id = "logicContent-cal";
+      calDiv.style.display = "none";
+      calDiv.innerHTML = `<div style="font-size:11px;color:#64748b;margin-bottom:12px">前月〜今後60日以内のイベントは <span style="background:#92400e;color:#fbbf24;padding:1px 6px;border-radius:3px;font-size:10px">⚠️ 直近</span> で強調表示されます。</div><div id="calendarContent"></div>`;
+      dataContent.parentNode.insertBefore(calDiv, dataContent.nextSibling);
+    }
+  }
+  switchLogicTab("data");
+  document.getElementById("logicModal").style.display = "flex";
 }
 function closeLogicModal() {
   document.getElementById("logicModal").style.display = "none";
@@ -4249,10 +4412,32 @@ const QUICK_NOTES  = ["地権者特定済","初回連絡済（郵便）","初回
 function togglePresentMode() {
   _isPresentMode = !_isPresentMode;
   document.body.classList.toggle("present-mode", _isPresentMode);
+  // 左パネルのトグルを更新
   const dot = document.getElementById("presentToggleDot");
   const tog = document.getElementById("presentToggle");
-  if (dot) { dot.style.left = _isPresentMode ? "16px" : "2px"; dot.style.background = _isPresentMode ? "#0ea5e9" : "#64748b"; }
+  const lbl = document.getElementById("presentLabelSidebar");
+  if (dot) { dot.style.left = _isPresentMode ? "18px" : "2px"; dot.style.background = _isPresentMode ? "#0ea5e9" : "#64748b"; }
   if (tog) tog.style.background = _isPresentMode ? "#0ea5e9" : "#334155";
+  if (lbl) { lbl.style.color = _isPresentMode ? "#0ea5e9" : "#94a3b8"; lbl.style.fontWeight = _isPresentMode ? "600" : "normal"; }
+}
+
+// 情報メニュードロップダウン
+function toggleInfoMenu() {
+  const menu = document.getElementById("infoMenuDropdown");
+  const isOpen = menu.style.display === "none";
+  menu.style.display = isOpen ? "block" : "none";
+  if (isOpen) {
+    setTimeout(() => document.addEventListener("click", function closeHandler(e) {
+      if (!e.target.closest("[data-info-menu]")) {
+        menu.style.display = "none";
+        document.removeEventListener("click", closeHandler);
+      }
+    }), 50);
+  }
+}
+function closeInfoMenu() {
+  const menu = document.getElementById("infoMenuDropdown");
+  if (menu) menu.style.display = "none";
 }
 
 async function loadCaseMap() {
