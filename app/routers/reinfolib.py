@@ -197,8 +197,31 @@ def get_landprice(
         confidence = "低"
         confidence_note = "住宅地等の地価（用途が異なる可能性）"
 
+    source = {
+        "source_name": f"地価公示（{nearest.data_year}年）",
+        "price_per_m2": nearest.price_per_m2,
+        "address": nearest.address,
+        "year": nearest.data_year,
+        "use_type": nearest.use_type,
+        "distance_m": dist_m,
+        "confidence": confidence,
+        "confidence_note": confidence_note,
+    }
+
+    # 将来の複数ソース対応：sources配列で返す
+    # 取引実績・路線価を追加する場合はここに追加するだけでフロントは変更不要
+    sources = [source]
+    prices = [s["price_per_m2"] for s in sources if s.get("price_per_m2")]
+
     return {
         "count": len(candidates),
+        "sources": sources,
+        "summary": {
+            "range_min": min(prices) if prices else None,
+            "range_max": max(prices) if prices else None,
+            "recommended": prices[0] if prices else None,
+        },
+        # 後方互換性のため nearest も残す
         "nearest": {
             "price_per_m2": nearest.price_per_m2,
             "address": nearest.address,

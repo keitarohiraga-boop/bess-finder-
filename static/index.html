@@ -2879,20 +2879,43 @@ async function loadLandPrice(lat, lng, containerId) {
       el.innerHTML = `<div style="font-size:11px;color:#475569">近隣の地価公示データなし</div>`;
       return;
     }
-    const n = d.nearest;
-    const price = n.price_per_m2 ? `${Number(n.price_per_m2).toLocaleString()} 円/㎡` : '不明';
-    const confColor = n.confidence === "高" ? "#4ade80" : n.confidence === "中" ? "#fbbf24" : "#f87171";
-    const distKm = n.distance_m ? (n.distance_m >= 1000 ? `${(n.distance_m/1000).toFixed(1)}km` : `${n.distance_m}m`) : '不明';
+    // sources配列で複数データソースに対応（将来の路線価・取引実績追加を想定）
+    const sources = d.sources || (d.nearest ? [{ ...d.nearest, source_name: "地価公示" }] : []);
+    const summary = d.summary || {};
+
+    const formatDist = m => m >= 1000 ? `${(m/1000).toFixed(1)}km` : `${m}m`;
+    const confColor  = c => c === "高" ? "#4ade80" : c === "中" ? "#fbbf24" : "#f87171";
+
+    const sourcesHtml = sources.map(s => `
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:11px">
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px;font-weight:600">${s.source_name || "地価公示"}</div>
+        <div class="detail-row" style="padding:3px 0">
+          <span class="key">参考地価</span>
+          <span class="val ok">${s.price_per_m2 ? Number(s.price_per_m2).toLocaleString()+'円/㎡' : '不明'}</span>
+        </div>
+        <div class="detail-row" style="padding:3px 0">
+          <span class="key">調査年・地目</span>
+          <span class="val">${s.year ?? '－'}年 / ${s.use_type || '－'}</span>
+        </div>
+        <div class="detail-row" style="padding:3px 0">
+          <span class="key">候補地からの距離</span>
+          <span class="val">${s.distance_m ? formatDist(s.distance_m) : '不明'}</span>
+        </div>
+        <div class="detail-row" style="padding:3px 0">
+          <span class="key">参考確度</span>
+          <span class="val" style="color:${confColor(s.confidence)}">${s.confidence || '－'} — ${s.confidence_note || ''}</span>
+        </div>
+        <div style="font-size:10px;color:#475569;margin-top:2px">${s.address || ''}</div>
+      </div>`).join("");
+
+    const rangeHtml = summary.range_min !== summary.range_max && sources.length > 1
+      ? `<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">
+           価格帯: ${Number(summary.range_min).toLocaleString()}〜${Number(summary.range_max).toLocaleString()} 円/㎡
+         </div>` : "";
+
     el.innerHTML = `
-      <div class="detail-row"><span class="key">近隣参考地価</span><span class="val ok">${price}</span></div>
-      <div class="detail-row"><span class="key">調査年</span><span class="val">${n.year ?? '－'}年</span></div>
-      <div class="detail-row"><span class="key">調査地目</span><span class="val">${n.use_type || '－'}</span></div>
-      <div class="detail-row"><span class="key">候補地からの距離</span><span class="val">${distKm}</span></div>
-      <div class="detail-row">
-        <span class="key">地価の参考確度</span>
-        <span class="val" style="color:${confColor}">${n.confidence || '－'} — ${n.confidence_note || ''}</span>
-      </div>
-      <div class="detail-row"><span class="key">所在</span><span class="val" style="font-size:10px">${n.address || '－'}</span></div>
+      ${rangeHtml}
+      ${sourcesHtml}
       <div style="font-size:10px;color:#475569;margin-top:4px">※対象地そのものの価格ではありません。シミュレーターの土地コストに反映済み。<br>出典: 国土交通省 不動産情報ライブラリ</div>
     `;
     // シミュレーターのデフォルト土地コストを更新
