@@ -4383,6 +4383,23 @@ function renderCaseTab(site) {
       </div>
       ` : ""}
 
+      <!-- 近隣不動産仲介会社 -->
+      <div style="border-top:1px solid #334155;margin-bottom:12px;padding-top:12px">
+        <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:6px">🏢 近隣の不動産仲介会社（半径5km）</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button onclick="loadRealEstateAgents(${site.id})"
+            style="flex:1;padding:6px;background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:6px;cursor:pointer;font-size:11px">
+            📋 リストを取得（OSM）
+          </button>
+          <a href="https://www.google.com/search?q=${encodeURIComponent(extractCity(site.address) + ' 不動産 土地売買 仲介')}"
+            target="_blank" rel="noopener"
+            style="flex:1;padding:6px;background:#0f172a;border:1px solid #38bdf8;color:#38bdf8;border-radius:6px;cursor:pointer;font-size:11px;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center">
+            🔍 その他を検索
+          </a>
+        </div>
+        <div id="realEstateList-${site.id}"></div>
+      </div>
+
       <!-- 案件リセット -->
       ${c ? `<div style="text-align:right;margin-bottom:10px">
         <span onclick="resetCase(${site.id})"
@@ -4442,6 +4459,58 @@ function copyApprovalMessage(siteId) {
     const btn = el.nextElementSibling;
     if (btn) { btn.textContent = "✅ コピー完了！"; setTimeout(() => btn.textContent = "📋 メッセージをコピー", 2000); }
   });
+}
+
+// ===== 近隣不動産仲介会社 =====
+function extractCity(address) {
+  // "福島県郡山市田村町" → "郡山市"
+  const m = address.match(/[都道府県](.+?[市区町村])/);
+  return m ? m[1].replace(/[丁目番号].*$/, "") : address.slice(0, 6);
+}
+
+async function loadRealEstateAgents(siteId) {
+  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+  if (!site) return;
+  const el = document.getElementById(`realEstateList-${siteId}`);
+  if (!el) return;
+  el.innerHTML = `<div style="font-size:11px;color:#475569">取得中...</div>`;
+
+  const radius = 5000;
+  const deg = radius / 111000;
+  const query = `
+[out:json][timeout:30][bbox:${site.lat-deg},${site.lng-deg},${site.lat+deg},${site.lng+deg}];
+(node["shop"="estate_agent"];node["office"="estate_agent"];way["shop"="estate_agent"];);
+out center;`;
+
+  try {
+    const data = encodeURIComponent(query);
+    const res = await fetch(`https://overpass-api.de/api/interpreter`, {
+      method: "POST", body: `data=${data}`,
+      headers: {"Content-Type": "application/x-www-form-urlencoded"}
+    });
+    const json = await res.json();
+    const city = extractCity(site.address);
+    const elements = json.elements || [];
+
+    if (elements.length === 0) {
+      el.innerHTML = `<div style="font-size:11px;color:#475569">OSMに登録された仲介会社が見つかりませんでした。「その他を検索」をお試しください。</div>`;
+      return;
+    }
+
+    const items = elements.slice(0, 15).map(e => {
+      const name = e.tags?.name || e.tags?.["name:ja"] || "（名称不明）";
+      const gUrl = `https://www.google.com/search?q=${encodeURIComponent(name + " 不動産 " + city)}`;
+      return `<div style="padding:5px 0;border-bottom:1px solid #1e293b;font-size:11px;display:flex;justify-content:space-between;align-items:center">
+        <a href="${gUrl}" target="_blank" rel="noopener" style="color:#38bdf8;text-decoration:none">${name} <span style="font-size:9px;opacity:0.6">↗</span></a>
+        <span style="font-size:10px;color:#475569">OSM</span>
+      </div>`;
+    }).join("");
+
+    el.innerHTML = `<div style="max-height:180px;overflow-y:auto">${items}</div>
+      <div style="font-size:10px;color:#475569;margin-top:4px">出典: OpenStreetMap（登録データのみ）</div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="font-size:11px;color:#475569">取得失敗。「その他を検索」をお試しください。</div>`;
+  }
 }
 
 async function resetCase(siteId) {
