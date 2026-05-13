@@ -180,6 +180,23 @@ def get_landprice(
         return {"count": 0, "nearest": None}
 
     nearest = min(candidates, key=lambda p: haversine(lat, lng, p.lat, p.lng))
+    dist_m = round(haversine(lat, lng, nearest.lat, nearest.lng))
+
+    # 地目一致度の判定（候補地の用途と公示地価の地目の関連性）
+    use = nearest.use_type or ""
+    # 住宅地→低適合（工業用途候補には参考値として扱う）
+    # 商業地→中程度
+    # 工業地→高適合
+    if "工業" in use:
+        confidence = "高"
+        confidence_note = "工業地の地価で用途が一致"
+    elif "商業" in use:
+        confidence = "中"
+        confidence_note = "商業地の地価（参考値）"
+    else:
+        confidence = "低"
+        confidence_note = "住宅地等の地価（用途が異なる可能性）"
+
     return {
         "count": len(candidates),
         "nearest": {
@@ -187,5 +204,8 @@ def get_landprice(
             "address": nearest.address,
             "year": nearest.data_year,
             "use_type": nearest.use_type,
+            "distance_m": dist_m,
+            "confidence": confidence,
+            "confidence_note": confidence_note,
         }
     }

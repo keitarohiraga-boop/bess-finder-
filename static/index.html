@@ -639,7 +639,14 @@
         WAGRI API・不動産情報ライブラリAPI取得後に実データへ切替。
       </div>
 
-      <div class="section-title">🔍 条件フィルター</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div class="section-title" style="margin-bottom:0">🔍 条件フィルター</div>
+        <button id="filterToggleBtn" onclick="toggleFilterPanel()"
+          style="font-size:10px;padding:2px 8px;background:#0f172a;border:1px solid #334155;color:#64748b;border-radius:4px;cursor:pointer">
+          ▲ 閉じる
+        </button>
+      </div>
+      <div id="filterPanelContent">
 
       <div class="filter-group">
         <div class="filter-label"><span class="icon">🌾</span> 農地法・地目 <span class="tag">農地ナビ</span></div>
@@ -695,6 +702,7 @@
         </div>
       </div>
     </div>
+    </div><!-- /filterPanelContent -->
 
     <!-- 案件ステータスフィルター（社内モードのみ） -->
     <div class="case-only" id="caseStatusFilters" style="padding:8px 16px;border-top:1px solid #1e293b;display:flex;gap:4px;flex-wrap:wrap">
@@ -2873,10 +2881,17 @@ async function loadLandPrice(lat, lng, containerId) {
     }
     const n = d.nearest;
     const price = n.price_per_m2 ? `${Number(n.price_per_m2).toLocaleString()} 円/㎡` : '不明';
+    const confColor = n.confidence === "高" ? "#4ade80" : n.confidence === "中" ? "#fbbf24" : "#f87171";
+    const distKm = n.distance_m ? (n.distance_m >= 1000 ? `${(n.distance_m/1000).toFixed(1)}km` : `${n.distance_m}m`) : '不明';
     el.innerHTML = `
       <div class="detail-row"><span class="key">近隣参考地価</span><span class="val ok">${price}</span></div>
       <div class="detail-row"><span class="key">調査年</span><span class="val">${n.year ?? '－'}年</span></div>
-      <div class="detail-row"><span class="key">用途</span><span class="val">${n.use_type || '－'}</span></div>
+      <div class="detail-row"><span class="key">調査地目</span><span class="val">${n.use_type || '－'}</span></div>
+      <div class="detail-row"><span class="key">候補地からの距離</span><span class="val">${distKm}</span></div>
+      <div class="detail-row">
+        <span class="key">地価の参考確度</span>
+        <span class="val" style="color:${confColor}">${n.confidence || '－'} — ${n.confidence_note || ''}</span>
+      </div>
       <div class="detail-row"><span class="key">所在</span><span class="val" style="font-size:10px">${n.address || '－'}</span></div>
       <div style="font-size:10px;color:#475569;margin-top:4px">※対象地そのものの価格ではありません。シミュレーターの土地コストに反映済み。<br>出典: 国土交通省 不動産情報ライブラリ</div>
     `;
@@ -4338,6 +4353,16 @@ async function rejectCase(siteId) {
   const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
   renderAll();
   if (site) refreshCaseTab(site);
+}
+
+// ===== フィルターパネル折りたたみ =====
+let _filterOpen = true;
+function toggleFilterPanel() {
+  _filterOpen = !_filterOpen;
+  const content = document.getElementById("filterPanelContent");
+  const btn = document.getElementById("filterToggleBtn");
+  if (content) content.style.display = _filterOpen ? "block" : "none";
+  if (btn) btn.textContent = _filterOpen ? "▲ 閉じる" : "▼ 開く";
 }
 
 // ===== モバイル：サイドバー制御 =====
