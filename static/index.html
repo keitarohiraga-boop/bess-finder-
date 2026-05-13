@@ -3235,10 +3235,14 @@ function calcIRR(flows) {
 }
 
 function renderFinancials(netRev, capex, spread, cap_kwh, cycles, eff) {
-  const flows = calc20YearCF(netRev, capex);
+  // 詳細設定の値をDOMから取得（未定義時はデフォルト値）
+  const discR   = parseFloat(document.getElementById("advDiscount")?.value || 8) / 100;
+  const degRateF = parseFloat(document.getElementById("advDegRate")?.value  || 2) / 100;
+
+  const flows = calc20YearCF(netRev, capex, degRateF);
   const irr = calcIRR(flows);
-  const npv8 = calcNPV(flows, 0.08);
-  const npv5 = calcNPV(flows, 0.05);
+  const npv8 = calcNPV(flows, discR);
+  const npv5 = calcNPV(flows, Math.max(0.03, discR - 0.03)); // 低リスク想定は設定値-3%
   const totalCF = flows.slice(1).reduce((a,b)=>a+b,0) - capex;
   const fmtM = n => n>=1e8?`${(n/1e8).toFixed(1)}億円`:`${(n/1e6).toFixed(1)}百万円`;
   const irrPct = (irr*100).toFixed(1);
@@ -3269,41 +3273,65 @@ function renderFinancials(netRev, capex, spread, cap_kwh, cycles, eff) {
     </tr>`;
   }).join("");
 
+  const discPct = Math.round(discR*100);
+  const lowPct  = Math.round(Math.max(0.03, discR-0.03)*100);
+
   return `
-    <div style="margin-top:14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">20年財務分析</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px">
-      <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:#64748b;margin-bottom:4px">IRR</div>
-        <div style="font-size:22px;font-weight:700;color:${irrColor}">${irrPct}%</div>
-        <div style="font-size:9px;color:#475569">内部収益率</div>
+    <!-- 20年財務分析（アコーディオン） -->
+    <details style="margin-top:10px;border:1px solid #334155;border-radius:8px;overflow:hidden">
+      <summary style="padding:9px 14px;background:#0f172a;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between">
+        📈 20年財務分析（IRR / NPV）<span style="font-size:10px">▶</span>
+      </summary>
+      <div style="padding:10px 14px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+          <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#64748b;margin-bottom:4px">IRR</div>
+            <div style="font-size:22px;font-weight:700;color:${irrColor}">${irrPct}%</div>
+            <div style="font-size:9px;color:#475569">内部収益率</div>
+          </div>
+          <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#64748b;margin-bottom:4px">NPV（${discPct}%）</div>
+            <div style="font-size:14px;font-weight:700;color:${npv8>=0?'#4ade80':'#f87171'}">${fmtM(npv8)}</div>
+            <div style="font-size:9px;color:#475569">${npv8>=0?'投資価値あり':'なし'}</div>
+          </div>
+          <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#64748b;margin-bottom:4px">NPV（${lowPct}%）</div>
+            <div style="font-size:14px;font-weight:700;color:${npv5>=0?'#4ade80':'#f87171'}">${fmtM(npv5)}</div>
+            <div style="font-size:9px;color:#475569">低リスク想定</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#475569">IRR目安：10%以上＝優良 / 7〜10%＝検討可 / 7%未満＝要再検討</div>
       </div>
-      <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:#64748b;margin-bottom:4px">NPV（割引率${Math.round(discR*100)}%）</div>
-        <div style="font-size:14px;font-weight:700;color:${npv8>=0?'#4ade80':'#f87171'}">${fmtM(npv8)}</div>
-        <div style="font-size:9px;color:#475569">${npv8>=0?'投資価値あり':'投資価値なし'}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:#64748b;margin-bottom:4px">NPV（割引率5%）</div>
-        <div style="font-size:14px;font-weight:700;color:${npv5>=0?'#4ade80':'#f87171'}">${fmtM(npv5)}</div>
-        <div style="font-size:9px;color:#475569">低リスク想定</div>
-      </div>
-    </div>
+    </details>
 
-    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">月次収益分布（季節変動）</div>
-    <div style="display:flex;align-items:flex-end;gap:2px;height:60px;margin-bottom:16px;padding:0 2px">
-      ${monthBars}
-    </div>
+    <!-- 月次収益分布（アコーディオン） -->
+    <details style="margin-top:6px;border:1px solid #334155;border-radius:8px;overflow:hidden">
+      <summary style="padding:9px 14px;background:#0f172a;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between">
+        📊 月次収益分布（季節変動）<span style="font-size:10px">▶</span>
+      </summary>
+      <div style="padding:10px 14px">
+        <div style="display:flex;align-items:flex-end;gap:2px;height:60px;margin-bottom:8px;padding:0 2px">${monthBars}</div>
+        <div style="font-size:10px;color:#64748b">■赤：夏冬（高需要期）　■黄：春秋（中程度）　■青：春（低需要期）</div>
+      </div>
+    </details>
 
-    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">感度分析（JEPXスプレッド変化 vs IRR）</div>
-    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">
-      <thead><tr style="background:#0f172a">
-        <th style="padding:6px 8px;text-align:left;color:#64748b;font-size:10px">スプレッド変化</th>
-        <th style="padding:6px 8px;text-align:right;color:#64748b;font-size:10px">IRR</th>
-        <th style="padding:6px 8px;text-align:right;color:#64748b;font-size:10px">NPV(8%)</th>
-      </tr></thead>
-      <tbody>${sensRows}</tbody>
-    </table>
-    <div style="font-size:10px;color:#475569">※蓄電池劣化率2%/年・20年運用を想定。IRR目標の目安：10%以上＝優良、7〜10%＝検討可、7%未満＝要再検討</div>
+    <!-- 感度分析（アコーディオン） -->
+    <details style="margin-top:6px;border:1px solid #334155;border-radius:8px;overflow:hidden">
+      <summary style="padding:9px 14px;background:#0f172a;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between">
+        🔢 感度分析（スプレッド変化 vs IRR）<span style="font-size:10px">▶</span>
+      </summary>
+      <div style="padding:10px 14px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:6px">
+          <thead><tr style="background:#0f172a">
+            <th style="padding:6px 8px;text-align:left;color:#64748b;font-size:10px">スプレッド変化</th>
+            <th style="padding:6px 8px;text-align:right;color:#64748b;font-size:10px">IRR</th>
+            <th style="padding:6px 8px;text-align:right;color:#64748b;font-size:10px">NPV(${discPct}%)</th>
+          </tr></thead>
+          <tbody>${sensRows}</tbody>
+        </table>
+        <div style="font-size:10px;color:#475569">劣化率${Math.round(degRateF*100)}%/年・20年運用を想定</div>
+      </div>
+    </details>
   `;
 }
 
@@ -3388,33 +3416,44 @@ function renderSimulator(site) {
       <button onclick="resetPreset(${site.id})" style="margin-top:6px;font-size:10px;padding:3px 8px;background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:4px;cursor:pointer">↺ プリセットに戻す</button>
     </div>
 
-    <div class="sim-input-row">
-      <label>蓄電池容量 <span id="simCapLabel">${preset.cap_mwh} MWh</span></label>
-      <input type="range" id="simCap" min="1" max="${Math.max(preset.cap_mwh * 2, 20)}" step="1" value="${preset.cap_mwh}"
-        style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
-    </div>
-    <div class="sim-input-row">
-      <label>出力 <span id="simPowerLabel">${preset.power_mw} MW</span></label>
-      <input type="range" id="simPower" min="0.5" max="${Math.max(preset.power_mw * 2, 10)}" step="0.5" value="${preset.power_mw}"
-        style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
-    </div>
-    <div class="sim-input-row">
-      <label>BESS設備単価 <span id="simUnitLabel">${preset.unit_price} 万円/kWh</span></label>
-      <input type="range" id="simUnit" min="3" max="10" step="0.5" value="${preset.unit_price}"
-        style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
-    </div>
-    <div class="sim-input-row">
-      <label>容量市場 供出年度 <span id="simYearLabel">${CAPACITY_YEARS[CAPACITY_YEARS.length-1]}年度</span></label>
-      <input type="range" id="simYear" min="${CAPACITY_YEARS[0]}" max="${CAPACITY_YEARS[CAPACITY_YEARS.length-1]}" step="1" value="${CAPACITY_YEARS[CAPACITY_YEARS.length-1]}"
-        style="width:100%;accent-color:#4ade80;cursor:pointer" oninput="calcSim(${site.id})">
-    </div>
-    <div style="font-size:11px;color:#475569;margin-bottom:8px">
-      JEPXスプレッド参照：${area}エリア ${spread} 円/kWh
-    </div>
+    <!-- 基本設定（アコーディオン） -->
+    <details style="margin-bottom:6px;border:1px solid #334155;border-radius:8px;overflow:hidden">
+      <summary style="padding:9px 14px;background:#0f172a;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between">
+        ⚙️ 基本設定（容量・出力・単価・年度）<span style="font-size:10px">▶</span>
+      </summary>
+      <div style="padding:10px 14px">
+        <div class="sim-input-row">
+          <label>蓄電池容量 <span id="simCapLabel">${preset.cap_mwh} MWh</span></label>
+          <input type="range" id="simCap" min="1" max="${Math.max(preset.cap_mwh * 2, 20)}" step="1" value="${preset.cap_mwh}"
+            style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
+        </div>
+        <div class="sim-input-row">
+          <label>出力 <span id="simPowerLabel">${preset.power_mw} MW</span></label>
+          <input type="range" id="simPower" min="0.5" max="${Math.max(preset.power_mw * 2, 10)}" step="0.5" value="${preset.power_mw}"
+            style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
+        </div>
+        <div class="sim-input-row">
+          <label>BESS設備単価 <span id="simUnitLabel">${preset.unit_price} 万円/kWh</span></label>
+          <input type="range" id="simUnit" min="3" max="10" step="0.5" value="${preset.unit_price}"
+            style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
+        </div>
+        <div class="sim-input-row">
+          <label>容量市場 供出年度 <span id="simYearLabel">${CAPACITY_YEARS[CAPACITY_YEARS.length-1]}年度</span></label>
+          <input type="range" id="simYear" min="${CAPACITY_YEARS[0]}" max="${CAPACITY_YEARS[CAPACITY_YEARS.length-1]}" step="1" value="${CAPACITY_YEARS[CAPACITY_YEARS.length-1]}"
+            style="width:100%;accent-color:#4ade80;cursor:pointer" oninput="calcSim(${site.id})">
+        </div>
+        <div style="font-size:11px;color:#475569;margin-top:4px">
+          JEPXスプレッド参照：${area}エリア ${spread} 円/kWh
+        </div>
+      </div>
+    </details>
 
-    <!-- 土地コスト -->
-    <div style="border-top:1px solid #334155;margin-top:12px;padding-top:12px">
-      <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">💴 土地コスト</div>
+    <!-- 土地コスト（アコーディオン） -->
+    <details style="margin-bottom:6px;border:1px solid #334155;border-radius:8px;overflow:hidden">
+      <summary style="padding:9px 14px;background:#0f172a;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between">
+        💴 土地コスト（購入 / リース）<span style="font-size:10px">▶</span>
+      </summary>
+      <div style="padding:10px 14px">
       <div style="display:flex;gap:6px;margin-bottom:10px">
         <button id="landModeBtn-buy" onclick="setLandMode('buy')"
           style="flex:1;padding:6px;border-radius:6px;border:1px solid #334155;background:#0ea5e9;color:#fff;font-size:12px;cursor:pointer">購入</button>
@@ -3442,7 +3481,8 @@ function renderSimulator(site) {
         </div>
         <div style="font-size:10px;color:#475569;margin-bottom:4px">公示地価×面積×リース率で自動計算。→ 年間コストに加算（IRR/NPVに影響）</div>
       </div>
-    </div><!-- /土地コスト -->
+      </div>
+    </details><!-- /土地コスト -->
 
     <!-- 詳細設定（アコーディオン） -->
     <details style="margin-top:10px;border:1px solid #334155;border-radius:8px;overflow:hidden">
@@ -4393,7 +4433,7 @@ function renderCaseTab(site) {
           </button>
           <a href="https://www.google.com/search?q=${encodeURIComponent(extractCity(site.address) + ' 不動産 土地売買 仲介')}"
             target="_blank" rel="noopener"
-            style="flex:1;padding:6px;background:#0f172a;border:1px solid #38bdf8;color:#38bdf8;border-radius:6px;cursor:pointer;font-size:11px;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center">
+            style="flex:1;padding:6px;background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:6px;cursor:pointer;font-size:11px;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center">
             🔍 その他を検索
           </a>
         </div>
@@ -4497,11 +4537,17 @@ out center;`;
       return;
     }
 
-    // 座標取得して距離計算・昇順ソート
+    // 座標取得して距離計算・昇順ソート（haversineをインライン定義）
+    const _dist = (lat1, lng1, lat2, lng2) => {
+      const R = 6371000, d2r = Math.PI/180;
+      const dlat = (lat2-lat1)*d2r, dlng = (lng2-lng1)*d2r;
+      const a = Math.sin(dlat/2)**2 + Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin(dlng/2)**2;
+      return Math.round(R*2*Math.asin(Math.sqrt(a)));
+    };
     const withDist = elements.map(e => {
       const lat = e.lat ?? e.center?.lat;
       const lng = e.lon ?? e.center?.lon;
-      const dist = (lat && lng) ? Math.round(haversine(site.lat, site.lng, lat, lng)) : null;
+      const dist = (lat && lng) ? _dist(site.lat, site.lng, lat, lng) : null;
       return { ...e, _dist: dist };
     }).sort((a, b) => (a._dist ?? 9e9) - (b._dist ?? 9e9));
 
