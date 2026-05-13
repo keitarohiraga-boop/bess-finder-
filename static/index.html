@@ -4497,12 +4497,23 @@ out center;`;
       return;
     }
 
-    const items = elements.slice(0, 15).map(e => {
+    // 座標取得して距離計算・昇順ソート
+    const withDist = elements.map(e => {
+      const lat = e.lat ?? e.center?.lat;
+      const lng = e.lon ?? e.center?.lon;
+      const dist = (lat && lng) ? Math.round(haversine(site.lat, site.lng, lat, lng)) : null;
+      return { ...e, _dist: dist };
+    }).sort((a, b) => (a._dist ?? 9e9) - (b._dist ?? 9e9));
+
+    const items = withDist.slice(0, 15).map(e => {
       const name = e.tags?.name || e.tags?.["name:ja"] || "（名称不明）";
       const gUrl = `https://www.google.com/search?q=${encodeURIComponent(name + " 不動産 " + city)}`;
+      const distLabel = e._dist != null
+        ? `<span style="font-size:10px;color:#64748b">${e._dist >= 1000 ? (e._dist/1000).toFixed(1)+"km" : e._dist+"m"}</span>`
+        : "";
       return `<div style="padding:5px 0;border-bottom:1px solid #1e293b;font-size:11px;display:flex;justify-content:space-between;align-items:center">
         <a href="${gUrl}" target="_blank" rel="noopener" style="color:#38bdf8;text-decoration:none">${name} <span style="font-size:9px;opacity:0.6">↗</span></a>
-        <span style="font-size:10px;color:#475569">OSM</span>
+        ${distLabel}
       </div>`;
     }).join("");
 
