@@ -3266,7 +3266,7 @@ function renderFinancials(netRev, capex, spread, cap_kwh, cycles, eff) {
         <div style="font-size:9px;color:#475569">内部収益率</div>
       </div>
       <div style="background:#0f172a;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:#64748b;margin-bottom:4px">NPV（割引率8%）</div>
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px">NPV（割引率${Math.round(discR*100)}%）</div>
         <div style="font-size:14px;font-weight:700;color:${npv8>=0?'#4ade80':'#f87171'}">${fmtM(npv8)}</div>
         <div style="font-size:9px;color:#475569">${npv8>=0?'投資価値あり':'投資価値なし'}</div>
       </div>
@@ -3431,6 +3431,52 @@ function renderSimulator(site) {
         <div style="font-size:10px;color:#475569;margin-bottom:4px">公示地価×面積×リース率で自動計算。→ 年間コストに加算（IRR/NPVに影響）</div>
       </div>
     </div><!-- /土地コスト -->
+
+    <!-- 詳細設定（アコーディオン） -->
+    <details style="margin-top:10px;border:1px solid #334155;border-radius:8px;overflow:hidden">
+      <summary style="padding:10px 14px;background:#0f172a;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;letter-spacing:0.05em">
+        ⚙️ 詳細設定（O&amp;M・劣化率・効率・割引率）
+        <span style="font-size:10px">▶ 展開</span>
+      </summary>
+      <div style="padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="sim-input-row">
+          <label>O&amp;M費率 <span id="advOmRateLabel">2.0%</span></label>
+          <input type="range" id="advOmRate" min="0.5" max="5" step="0.5" value="2"
+            style="width:100%;accent-color:#94a3b8;cursor:pointer"
+            oninput="document.getElementById('advOmRateLabel').textContent=this.value+'%';if(_currentSite)calcSim(_currentSite.id)">
+          <div style="font-size:9px;color:#475569">設備費に対する年間割合</div>
+        </div>
+        <div class="sim-input-row">
+          <label>蓄電池劣化率 <span id="advDegRateLabel">2.0%</span>/年</label>
+          <input type="range" id="advDegRate" min="0.5" max="5" step="0.5" value="2"
+            style="width:100%;accent-color:#94a3b8;cursor:pointer"
+            oninput="document.getElementById('advDegRateLabel').textContent=this.value+'%';if(_currentSite)calcSim(_currentSite.id)">
+          <div style="font-size:9px;color:#475569">年間の容量低下率</div>
+        </div>
+        <div class="sim-input-row">
+          <label>年間充放電サイクル <span id="advCyclesLabel">300</span>回</label>
+          <input type="range" id="advCycles" min="100" max="365" step="10" value="300"
+            style="width:100%;accent-color:#94a3b8;cursor:pointer"
+            oninput="document.getElementById('advCyclesLabel').textContent=this.value;if(_currentSite)calcSim(_currentSite.id)">
+          <div style="font-size:9px;color:#475569">1日1回=365回が最大</div>
+        </div>
+        <div class="sim-input-row">
+          <label>充放電効率 <span id="advEffLabel">88</span>%</label>
+          <input type="range" id="advEff" min="70" max="95" step="1" value="88"
+            style="width:100%;accent-color:#94a3b8;cursor:pointer"
+            oninput="document.getElementById('advEffLabel').textContent=this.value;if(_currentSite)calcSim(_currentSite.id)">
+          <div style="font-size:9px;color:#475569">ラウンドトリップ効率</div>
+        </div>
+        <div class="sim-input-row" style="grid-column:span 2">
+          <label>NPV割引率 <span id="advDiscountLabel">8</span>%</label>
+          <input type="range" id="advDiscount" min="3" max="15" step="1" value="8"
+            style="width:100%;accent-color:#94a3b8;cursor:pointer"
+            oninput="document.getElementById('advDiscountLabel').textContent=this.value;if(_currentSite)calcSim(_currentSite.id)">
+          <div style="font-size:9px;color:#475569">投資家の期待リターン（WACC等）。変更するとNPV結果が変わります</div>
+        </div>
+      </div>
+    </details>
+
     <div id="simResults${site.id}"></div>
   `;
 }
@@ -3497,10 +3543,13 @@ function calcSim(siteId) {
   const { price: capPrice, label: capLabel } = getCapacityPrice(area, year);
   const capConfirmed = CAPACITY_MARKET[year]?.confirmed ?? false;
 
-  // ── 収益計算 ──
+  // ── 収益計算（詳細設定スライダーから読み取り、なければデフォルト値） ──
   const spread  = site.jepx?.spread ?? 5.0;
-  const cycles  = 300;
-  const eff     = 0.88;
+  const cycles  = parseFloat(document.getElementById("advCycles")?.value  || 300);
+  const eff     = parseFloat(document.getElementById("advEff")?.value     || 88) / 100;
+  const omRate  = parseFloat(document.getElementById("advOmRate")?.value  || 2) / 100;
+  const degRate = parseFloat(document.getElementById("advDegRate")?.value || 2) / 100;
+  const discR   = parseFloat(document.getElementById("advDiscount")?.value || 8) / 100;
 
   const rev_jepx    = spread * cap_kwh * cycles * eff;
   const rev_cap     = capMktEligible ? power_kw * capPrice : 0;
@@ -3514,11 +3563,11 @@ function calcSim(siteId) {
 
   // ── 設備+土地コスト計算 ──
   const equipCapex = unit_man * 10000 * cap_kwh;
-  const capex   = equipCapex + landCost.capexAdd;  // 購入時は土地代をCAPEXに加算
-  const om_cost = equipCapex * 0.02;               // O&Mは設備費ベース
-  const annual_lease = landCost.annualAdd;          // リース時の年間地代
-  const net_rev = rev_total - om_cost - annual_lease;
-  const payback = net_rev > 0 ? capex / net_rev : null;
+  const capex      = equipCapex + landCost.capexAdd;
+  const om_cost    = equipCapex * omRate;           // 詳細設定のO&M費率を使用
+  const annual_lease = landCost.annualAdd;
+  const net_rev    = rev_total - om_cost - annual_lease;
+  const payback    = net_rev > 0 ? capex / net_rev : null;
 
   const fmt = n => n >= 1e8
     ? `${(n/1e8).toFixed(1)}億円`
@@ -3628,11 +3677,14 @@ function buildReportData() {
   const landCostR = getLandCost(cap_kwh);
   const equipCapexR = unit_man * 10000 * cap_kwh;
   const capex    = equipCapexR + landCostR.capexAdd;
-  const om_cost  = equipCapexR * 0.02;
+  const omRateR   = parseFloat(document.getElementById("advOmRate")?.value  || 2) / 100;
+  const degRateR  = parseFloat(document.getElementById("advDegRate")?.value || 2) / 100;
+  const discRR    = parseFloat(document.getElementById("advDiscount")?.value || 8) / 100;
+  const om_cost  = equipCapexR * omRateR;
   const net_rev  = rev_total - om_cost - landCostR.annualAdd;
-  const flows    = calc20YearCF(net_rev, capex);
+  const flows    = calc20YearCF(net_rev, capex, degRateR);
   const irr      = calcIRR(flows);
-  const npv8     = calcNPV(flows, 0.08);
+  const npv8     = calcNPV(flows, discRR);
   const payback  = net_rev > 0 ? capex / net_rev : null;
   const fmtM = n => n>=1e8?`${(n/1e8).toFixed(1)}億円`:`${(n/1e6).toFixed(1)}百万円`;
 
