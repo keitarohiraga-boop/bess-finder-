@@ -4382,10 +4382,21 @@ async function rejectCase(siteId) {
 let _filterOpen = true;
 function toggleFilterPanel() {
   _filterOpen = !_filterOpen;
-  const content = document.getElementById("filterPanelContent");
-  const btn = document.getElementById("filterToggleBtn");
+  const content  = document.getElementById("filterPanelContent");
+  const btn      = document.getElementById("filterToggleBtn");
+  const scroll   = document.querySelector(".sidebar-scroll");
+  const notice   = document.querySelector(".api-notice");
+
   if (content) content.style.display = _filterOpen ? "block" : "none";
-  if (btn) btn.textContent = _filterOpen ? "▲ 閉じる" : "▼ 開く";
+  if (notice)  notice.style.display  = _filterOpen ? "block" : "none";
+  if (btn)     btn.textContent = _filterOpen ? "▲ 閉じる" : "▼ 開く";
+
+  // 閉じたとき sidebar-scroll を縮め、候補リストが広がるようにする
+  if (scroll) {
+    scroll.style.flex     = _filterOpen ? "1" : "0";
+    scroll.style.overflow = _filterOpen ? "" : "hidden";
+    scroll.style.padding  = _filterOpen ? "" : "8px 16px";
+  }
 }
 
 // ===== モバイル：サイドバー制御 =====
