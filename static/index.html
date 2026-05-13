@@ -697,14 +697,21 @@
     </div>
 
     <!-- 案件ステータスフィルター（社内モードのみ） -->
-    <div class="case-only" style="padding:8px 16px;border-top:1px solid #1e293b;display:flex;gap:4px;flex-wrap:wrap">
+    <div class="case-only" id="caseStatusFilters" style="padding:8px 16px;border-top:1px solid #1e293b;display:flex;gap:4px;flex-wrap:wrap">
       <button class="case-status-filter active" data-status="" onclick="setCaseFilter(this,'')"
         style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#334155;color:#e2e8f0;cursor:pointer">すべて</button>
       <button class="case-status-filter" data-status="未登録" onclick="setCaseFilter(this,'未登録')"
-        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">📍未登録</button>
-      ${["精査中","承認待ち","アプローチ中","契約済","見送り"].map(s=>`
-      <button class="case-status-filter" data-status="${s}" onclick="setCaseFilter(this,'${s}')"
-        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">${STATUS_EMOJI[s]||""}${s}</button>`).join("")}
+        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">📍 未登録</button>
+      <button class="case-status-filter" data-status="精査中" onclick="setCaseFilter(this,'精査中')"
+        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">🔍 精査中</button>
+      <button class="case-status-filter" data-status="承認待ち" onclick="setCaseFilter(this,'承認待ち')"
+        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">⏳ 承認待ち</button>
+      <button class="case-status-filter" data-status="アプローチ中" onclick="setCaseFilter(this,'アプローチ中')"
+        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">🚀 アプローチ中</button>
+      <button class="case-status-filter" data-status="契約済" onclick="setCaseFilter(this,'契約済')"
+        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">✅ 契約済</button>
+      <button class="case-status-filter" data-status="見送り" onclick="setCaseFilter(this,'見送り')"
+        style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#64748b;cursor:pointer">❌ 見送り</button>
     </div>
 
     <!-- 結果数 -->
