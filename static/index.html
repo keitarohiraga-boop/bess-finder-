@@ -2734,6 +2734,17 @@ function showEvalResult(d, hazard, title, area_m2) {
 }
 
 // ===== 更新履歴 =====
+/**
+ * バージョン管理ルール（Semantic Versioning）
+ *
+ * MAJOR.MINOR.PATCH
+ *   MAJOR +1 : アーキテクチャ刷新・ほぼ作り直しレベルの変更
+ *   MINOR +1 : 新機能追加・設計変更（例: 案件管理、シミュレーター再設計）
+ *   PATCH +1 : バグ修正・小さなUI調整・ラベル変更等
+ *
+ * 記載タイミング：機能の動作確認が取れたタイミングで追記
+ * 記載基準：MINOR以上は必須、PATCHは小さい修正はまとめて「その他の修正」で可
+ */
 const CHANGELOG = [
   {
     version: "1.6.0", date: "2026-05-13",
