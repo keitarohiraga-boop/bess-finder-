@@ -3046,11 +3046,12 @@ async function loadLandPrice(lat, lng, containerId) {
       ${sourcesHtml}
       <div style="font-size:10px;color:#475569;margin-top:4px">※対象地そのものの価格ではありません。シミュレーターの土地コストに反映済み。<br>出典: 国土交通省 不動産情報ライブラリ</div>
     `;
-    // シミュレーターのデフォルト土地コストを更新
-    if (n.price_per_m2 && _currentSite) {
-      _landPricePerM2 = n.price_per_m2;
+    // シミュレーターのデフォルト土地コストを更新（sourcesの最初のエントリから取得）
+    const firstSource = sources[0];
+    if (firstSource?.price_per_m2 && _currentSite) {
+      _landPricePerM2 = firstSource.price_per_m2;
       const area = _currentSite.area;
-      const totalManyen = Math.round(n.price_per_m2 * area / 10000);
+      const totalManyen = Math.round(firstSource.price_per_m2 * area / 10000);
       const el2 = document.getElementById('landPrice');
       if (el2) { el2.max = Math.max(totalManyen * 3, 3000); el2.value = totalManyen; }
       const lbl = document.getElementById('landPriceLabel');
@@ -3434,11 +3435,11 @@ function renderSimulator(site) {
 
     <!-- 詳細設定（アコーディオン） -->
     <details style="margin-top:10px;border:1px solid #334155;border-radius:8px;overflow:hidden">
-      <summary style="padding:10px 14px;background:#0f172a;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;letter-spacing:0.05em">
-        ⚙️ 詳細設定（O&amp;M・劣化率・効率・割引率）
-        <span style="font-size:10px">▶ 展開</span>
+      <summary style="padding:10px 14px;background:#0f172a;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center">
+        ⚙️ 詳細設定
+        <span style="font-size:10px">▶</span>
       </summary>
-      <div style="padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
         <div class="sim-input-row">
           <label>O&amp;M費率 <span id="advOmRateLabel">2.0%</span></label>
           <input type="range" id="advOmRate" min="0.5" max="5" step="0.5" value="2"
@@ -3467,7 +3468,7 @@ function renderSimulator(site) {
             oninput="document.getElementById('advEffLabel').textContent=this.value;if(_currentSite)calcSim(_currentSite.id)">
           <div style="font-size:9px;color:#475569">ラウンドトリップ効率</div>
         </div>
-        <div class="sim-input-row" style="grid-column:span 2">
+        <div class="sim-input-row">
           <label>NPV割引率 <span id="advDiscountLabel">8</span>%</label>
           <input type="range" id="advDiscount" min="3" max="15" step="1" value="8"
             style="width:100%;accent-color:#94a3b8;cursor:pointer"
