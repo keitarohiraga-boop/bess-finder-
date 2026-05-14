@@ -847,6 +847,33 @@
       </div>
     </div>
 
+    <!-- 重みづけパネル -->
+    <div class="weight-panel" id="weightPanel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;color:#e2e8f0">⚙️ スコア重みづけ</div>
+        <button onclick="toggleWeightPanel()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:16px">✕</button>
+      </div>
+      <div class="weight-row"><label>立地スコア <span id="wLocVal">30</span>%</label>
+        <input type="range" id="wLoc" min="0" max="100" step="5" value="30" style="width:100%;accent-color:#38bdf8" oninput="updateWeights()">
+      </div>
+      <div class="weight-row"><label>収益スコア <span id="wRevVal">40</span>%</label>
+        <input type="range" id="wRev" min="0" max="100" step="5" value="40" style="width:100%;accent-color:#4ade80" oninput="updateWeights()">
+      </div>
+      <div class="weight-row"><label>需要スコア <span id="wDemVal">15</span>%</label>
+        <input type="range" id="wDem" min="0" max="100" step="5" value="15" style="width:100%;accent-color:#fbbf24" oninput="updateWeights()">
+      </div>
+      <div class="weight-row"><label>リスクスコア <span id="wRiskVal">15</span>%</label>
+        <input type="range" id="wRisk" min="0" max="100" step="5" value="15" style="width:100%;accent-color:#f87171" oninput="updateWeights()">
+      </div>
+      <div class="weight-total" id="weightTotal" style="color:#4ade80">合計: 100%</div>
+      <div class="preset-btns">
+        <button class="preset-btn" onclick="applyPreset('balance')">⚖️ バランス型</button>
+        <button class="preset-btn" onclick="applyPreset('revenue')">💰 収益重視</button>
+        <button class="preset-btn" onclick="applyPreset('risk')">🛡️ リスク重視</button>
+        <button class="preset-btn" onclick="applyPreset('demand')">🏭 需要重視</button>
+      </div>
+    </div>
+
     <!-- 分析ロジック・データ出典モーダル -->
     <div id="logicModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:400;align-items:center;justify-content:center;backdrop-filter:blur(4px)"
       onclick="if(event.target===this)closeLogicModal()">
@@ -1027,37 +1054,6 @@
           <button onclick="closeChangelogModal()" style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
         </div>
         <div id="changelogContent"></div>
-      </div>
-    </div>
-
-    <!-- 重みづけパネル -->
-    <div class="weight-panel" id="weightPanel">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:13px;font-weight:700;color:#e2e8f0">⚙️ スコア重みづけ</div>
-        <button onclick="toggleWeightPanel()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:16px">✕</button>
-      </div>
-      <div class="weight-row">
-        <label>立地スコア <span id="wLocVal">30</span>%</label>
-        <input type="range" id="wLoc" min="0" max="100" step="5" value="30" style="width:100%;accent-color:#38bdf8" oninput="updateWeights()">
-      </div>
-      <div class="weight-row">
-        <label>収益スコア <span id="wRevVal">40</span>%</label>
-        <input type="range" id="wRev" min="0" max="100" step="5" value="40" style="width:100%;accent-color:#4ade80" oninput="updateWeights()">
-      </div>
-      <div class="weight-row">
-        <label>需要スコア <span id="wDemVal">15</span>%</label>
-        <input type="range" id="wDem" min="0" max="100" step="5" value="15" style="width:100%;accent-color:#fbbf24" oninput="updateWeights()">
-      </div>
-      <div class="weight-row">
-        <label>リスクスコア <span id="wRiskVal">15</span>%</label>
-        <input type="range" id="wRisk" min="0" max="100" step="5" value="15" style="width:100%;accent-color:#f87171" oninput="updateWeights()">
-      </div>
-      <div class="weight-total" id="weightTotal" style="color:#4ade80">合計: 100%</div>
-      <div class="preset-btns">
-        <button class="preset-btn" onclick="applyPreset('balance')">⚖️ バランス型</button>
-        <button class="preset-btn" onclick="applyPreset('revenue')">💰 収益重視</button>
-        <button class="preset-btn" onclick="applyPreset('risk')">🛡️ リスク重視</button>
-        <button class="preset-btn" onclick="applyPreset('demand')">🏭 需要重視</button>
       </div>
     </div>
 
