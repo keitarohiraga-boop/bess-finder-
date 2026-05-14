@@ -616,18 +616,18 @@
     <div style="position:relative" id="infoMenuWrap">
       <button id="infoMenuBtn" onclick="toggleInfoMenu()"
         style="background:#1e293b;border:1px solid #475569;color:#94a3b8;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer">
-        ℹ️ 情報メニュー ▾
+        ℹ️ 情報メニュー ▼
       </button>
       <div id="infoMenuDropdown" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:#1e293b;border:1px solid #334155;border-radius:8px;min-width:200px;z-index:300;box-shadow:0 4px 16px rgba(0,0,0,0.5);overflow:hidden">
-        <button onclick="infoMenuAction(toggleWeightPanel)"
+        <button onclick="closeInfoMenu();toggleWeightPanel()"
           style="display:block;width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid #334155;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
           ⚙️ 重みづけ設定
         </button>
-        <button onclick="infoMenuAction(openLogicModal)"
+        <button onclick="closeInfoMenu();openLogicModal()"
           style="display:block;width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid #334155;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
           📊 分析ロジック・制度カレンダー
         </button>
-        <button onclick="infoMenuAction(openChangelogModal)"
+        <button onclick="closeInfoMenu();openChangelogModal()"
           style="display:block;width:100%;padding:10px 16px;background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
           📋 更新履歴
         </button>
@@ -4429,16 +4429,7 @@ function togglePresentMode() {
 // 情報メニュードロップダウン
 function toggleInfoMenu() {
   const menu = document.getElementById("infoMenuDropdown");
-  const isOpen = menu.style.display === "none";
-  menu.style.display = isOpen ? "block" : "none";
-  if (isOpen) {
-    setTimeout(() => document.addEventListener("click", function closeHandler(e) {
-      if (!document.getElementById("infoMenuWrap")?.contains(e.target)) {
-        menu.style.display = "none";
-        document.removeEventListener("click", closeHandler);
-      }
-    }), 50);
-  }
+  menu.style.display = menu.style.display === "none" ? "block" : "none";
 }
 function closeInfoMenu() {
   const menu = document.getElementById("infoMenuDropdown");
