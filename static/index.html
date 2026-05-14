@@ -623,11 +623,11 @@
           style="display:block;width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid #334155;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
           ⚙️ 重みづけ設定
         </button>
-        <button onclick="closeInfoMenu();openLogicModal()"
+        <button onclick="infoMenuAction(openLogicModal)"
           style="display:block;width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid #334155;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
           📊 分析ロジック・制度カレンダー
         </button>
-        <button onclick="closeInfoMenu();openChangelogModal()"
+        <button onclick="infoMenuAction(openChangelogModal)"
           style="display:block;width:100%;padding:10px 16px;background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
           📋 更新履歴
         </button>
@@ -2965,8 +2965,12 @@ function renderCalendarTab() {
 }
 
 function openChangelogModal() {
+  const modal = document.getElementById("changelogModal");
+  if (!modal) return;
+  modal.style.display = "flex";
   const el = document.getElementById("changelogContent");
-  if (el) {
+  if (!el) return;
+  try {
     el.innerHTML = CHANGELOG.map((v, vi) => `
       ${vi > 0 ? '<div style="border-top:1px solid #334155;margin-bottom:20px"></div>' : ""}
       <div style="margin-bottom:20px">
@@ -2982,8 +2986,10 @@ function openChangelogModal() {
           </div>`).join("")}
       </div>
     `).join("");
+  } catch(err) {
+    el.innerHTML = "<p style='color:#f87171;padding:16px'>読み込みエラーが発生しました。</p>";
+    console.error("openChangelogModal error:", err);
   }
-  document.getElementById("changelogModal").style.display = "flex";
 }
 function closeChangelogModal() {
   document.getElementById("changelogModal").style.display = "none";
