@@ -103,56 +103,68 @@ def _search_farmland(lat: float, lng: float, distance_m: int = 100) -> list[dict
 
 def _determine_farm_class(features: list[dict]) -> Optional[str]:
     """
-    農地ピンのデータから farm_class を判定。
-    レスポンス内の農地種別フィールドを確認して第1〜3種に変換。
-    農地でない場合は None を返す。
+    WAGRIの農地ピンデータから農地クラスを判定。
+    AgriculturalVibrationMethodClassificationCode（農振区分）と
+    CityPlanningActClassificationCode（都市計画法区分）の組み合わせで判定。
     """
     if not features:
         return None  # 農地なし
 
-    # 優先度の高い農地区分を選択（複数ある場合は最も厳しいものを採用）
     class_priority = {"class1-farm": 3, "class2-farm": 2, "class3-farm": 1}
     detected = None
 
     for feat in features:
-        # GeoJSON Feature の場合
         props = feat.get("properties", feat) if isinstance(feat, dict) else {}
+        agri_code = str(props.get("AgriculturalVibrationMethodClassificationCode", "")).strip()
+        city_code  = str(props.get("CityPlanningActClassificationCode", "")).strip()
+        farm_class = _classify_by_wagri_codes(agri_code, city_code)
 
-        # WAGRI の農地区分フィールドを探す（フィールド名は要確認）
-        # 候補: LandType, landType, farmType, field_type, 農地種別, YOTOKEN など
-        raw = (
-            props.get("LandType") or props.get("landType") or
-            props.get("farmType") or props.get("field_type") or
-            props.get("YOTOKEN") or props.get("yotoken") or
-            props.get("農地種別") or ""
-        )
-        raw = str(raw).strip()
+        if detected is None or class_priority.get(farm_class, 0) > class_priority.get(detected, 0):
+            detected = farm_class
 
-        farm_class = _map_land_type(raw)
-        if farm_class:
-            # より厳しい（転用困難な）クラスを優先
-            if detected is None or class_priority.get(farm_class, 0) > class_priority.get(detected, 0):
-                detected = farm_class
-
-    # 農地ピンは存在するが区分不明の場合は class3-farm（最も転用しやすい）として扱う
     return detected or "class3-farm"
 
 
-def _map_land_type(raw: str) -> Optional[str]:
-    """農地種別の生値をアプリの farm_class 値にマッピング"""
-    if not raw:
-        return None
-    r = raw.lower()
-    # 第1種農地（転用不可）
-    if any(k in r for k in ["1種", "第1", "class1", "1号", "集団農地", "土地改良"]):
+def _classify_by_wagri_codes(agri_code: str, city_code: str) -> str:
+    """
+    農振区分コードと都市計画法区分コードから農地3種区分を判定。
+
+    agri_code:
+      1 = 農業振興地域内農用地区域（農振農用地） → 第1種農地
+      2 = 農業振興地域内・農用地区域外（白地）
+      3 = 農業振興地域外
+
+    city_code:
+      1 = 市街化区域 → 第3種農地（転用原則可）
+      2 = 市街化調整区域 → 第1〜2種
+      3 = 非線引き都市計画区域
+      4 = 都市計画区域外
+      9 = 調査中
+    """
+    # 農振農用地区域 → 第1種農地（転用不可）
+    if agri_code == "1":
         return "class1-farm"
-    # 第2種農地（要協議）
-    if any(k in r for k in ["2種", "第2", "class2", "2号"]):
-        return "class2-farm"
-    # 第3種農地（転用可）
-    if any(k in r for k in ["3種", "第3", "class3", "3号", "市街化"]):
+
+    # 市街化区域内 → 第3種農地（転用可）
+    if city_code == "1":
         return "class3-farm"
-    return None
+
+    # 農振白地（農業振興地域内・農用地区域外）
+    if agri_code == "2":
+        # 市街化調整区域 → 第2種農地（要協議）
+        if city_code in ("2", "3"):
+            return "class2-farm"
+        # 都市計画区域外・調査中 → 保守的に第2種
+        return "class2-farm"
+
+    # 農業振興地域外
+    if agri_code == "3":
+        if city_code in ("2",):
+            return "class2-farm"
+        return "class3-farm"
+
+    # 不明な場合は保守的に第2種
+    return "class2-farm"
 
 
 # ===== エンドポイント =====
@@ -185,7 +197,7 @@ def update_site_farmclass(site_id: int, db: Session = Depends(get_db)):
     if not site:
         raise HTTPException(status_code=404, detail="候補地が見つかりません")
 
-    features = _search_farmland(site.lat, site.lng)
+    features = _search_farmland(site.lat, site.lng, distance_m=500)
     farm_class = _determine_farm_class(features)
     old_class = site.farm_class
     site.farm_class = farm_class
@@ -218,6 +230,7 @@ def update_all_farmclass(db: Session = Depends(get_db)):
             })
         except Exception as e:
             errors.append({"site_id": site.id, "name": site.name, "error": str(e)})
+            continue
 
     db.commit()
     return {
