@@ -3568,6 +3568,20 @@ function syncLandPrice(source) {
     if (v > parseInt(slider.max)) slider.max = v * 2;
     slider.value = Math.min(v, parseInt(slider.max));
   }
+  // 購入価格変更時にリース金額も連動して再計算
+  updateLeaseCalcFromPrice();
+  if (_currentSite) calcSim(_currentSite.id);
+}
+
+function resetLandPrice() {
+  if (!_landPricePerM2 || !_currentSite) return;
+  const totalManyen = Math.round(_landPricePerM2 * _currentSite.area / 10000);
+  const maxVal = Math.max(totalManyen * 3, 3000);
+  const slider = document.getElementById('landPrice');
+  const num    = document.getElementById('landPriceNum');
+  if (slider) { slider.max = maxVal; slider.value = totalManyen; }
+  if (num)    { num.value = totalManyen; }
+  updateLeaseCalcFromPrice();
   if (_currentSite) calcSim(_currentSite.id);
 }
 
@@ -3597,14 +3611,22 @@ function setLandMode(mode) {
   if (_currentSite) calcSim(_currentSite.id);
 }
 
+function updateLeaseCalcFromPrice() {
+  // 購入価格（万円）× リース率 → 年間地代（万円）
+  const rate       = parseFloat(document.getElementById('leaseRate')?.value || 2);
+  const priceManyen = parseFloat(document.getElementById('landPrice')?.value || 0);
+  if (priceManyen <= 0) return;
+  const annual = Math.round(priceManyen * rate / 100);
+  const leaseSlider = document.getElementById('landLease');
+  const leaseNum    = document.getElementById('landLeaseNum');
+  if (leaseSlider) { leaseSlider.max = Math.max(annual * 3, 500); leaseSlider.value = annual; }
+  if (leaseNum)    { leaseNum.value = annual; }
+}
+
 function updateLeaseCalc() {
   const rate = parseFloat(document.getElementById('leaseRate')?.value || 2);
-  document.getElementById('leaseRateLabel').textContent = `${rate}%`;
-  if (_landPricePerM2 && _currentSite) {
-    const annual = Math.round(_landPricePerM2 * _currentSite.area * rate / 100 / 10000);
-    document.getElementById('landLease').value = Math.min(annual, 9990);
-    document.getElementById('landLeaseLabel').textContent = `${annual.toLocaleString()}万円/年`;
-  }
+  document.getElementById('leaseRateLabel').textContent = `${rate.toFixed(1)}%`;
+  updateLeaseCalcFromPrice();
   if (_currentSite) calcSim(_currentSite.id);
 }
 
@@ -3879,7 +3901,7 @@ function renderSimulator(site) {
             <span style="font-size:11px;color:#64748b;white-space:nowrap">万円</span>
           </div>
         </div>
-        <div style="font-size:10px;color:#475569;margin-bottom:4px">公示地価ベースで自動計算。直接入力またはスライダーで調整可能。→ CAPEXに加算</div>
+        <div style="font-size:10px;color:#475569;margin-top:4px">公示地価ベースで自動計算。直接入力またはスライダーで調整可能。→ CAPEXに加算</div>
       </div>
       <div id="landLeaseSection" style="display:none">
         <div class="sim-input-row">
