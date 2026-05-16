@@ -43,22 +43,25 @@ def estimate_net_revenue(
     power_mw: float,
     cap_price_per_kw: float = 14000,
     ancillary_per_kw: float = 2000,
-    cycles_per_day: int = 300,
+    cycles_per_year: int = 300,
     efficiency: float = 0.88,
 ) -> float:
     """年間純収益（円）を試算"""
-    arbitrage = jepx_spread * capacity_mwh * cycles_per_day * efficiency
-    capacity  = power_mw * 1000 * cap_price_per_kw
-    ancillary = power_mw * 1000 * ancillary_per_kw
+    cap_kwh   = capacity_mwh * 1000                              # MWh → kWh
+    power_kw  = power_mw * 1000                                  # MW  → kW
+    arbitrage = jepx_spread * cap_kwh * cycles_per_year * efficiency
+    capacity  = power_kw * cap_price_per_kw
+    ancillary = power_kw * ancillary_per_kw
     return arbitrage + capacity + ancillary
 
 
 def estimate_capex(
     capacity_mwh: float,
-    unit_price_per_kwh: float = 60,  # 万円/kWh
+    unit_price_per_kwh: float = 25,  # 万円/kWh（市場標準：20〜40万円/kWh）
 ) -> float:
     """設備投資額（円）を試算"""
-    return unit_price_per_kwh * 10000 * capacity_mwh
+    cap_kwh = capacity_mwh * 1000   # MWh → kWh
+    return unit_price_per_kwh * 10000 * cap_kwh
 
 
 # ===== エンドポイント =====
