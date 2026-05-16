@@ -3570,7 +3570,7 @@ function syncLandPrice(source) {
   }
   // 購入価格変更時にリース金額も連動して再計算
   updateLeaseCalcFromPrice();
-  if (_currentSite) calcSim(_currentSite.id);
+  if (_currentSite) calcSim(_currentSite.id, true); // 土地価格の再上書きをスキップ
 }
 
 function resetLandPrice() {
@@ -3608,7 +3608,7 @@ function setLandMode(mode) {
   document.getElementById('landModeBtn-buy').style.color        = mode === 'buy'   ? '#fff'    : '#94a3b8';
   document.getElementById('landModeBtn-lease').style.background = mode === 'lease' ? '#0ea5e9' : '#0f172a';
   document.getElementById('landModeBtn-lease').style.color      = mode === 'lease' ? '#fff'    : '#94a3b8';
-  if (_currentSite) calcSim(_currentSite.id);
+  if (_currentSite) calcSim(_currentSite.id, true); // 土地価格の再上書きをスキップ
 }
 
 function updateLeaseCalcFromPrice() {
@@ -3985,7 +3985,7 @@ function resetPreset(siteId) {
   calcSim(siteId);
 }
 
-function calcSim(siteId) {
+function calcSim(siteId, skipLandUpdate = false) {
   const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
   if (!site) return;
 
@@ -4003,7 +4003,16 @@ function calcSim(siteId) {
   const power_kw = power_mw * 1000;
 
   // 容量に基づく必要土地面積（1MWh=80m²、バッファ20%）で土地コストを自動更新
-  // 土地価格はユーザー入力値をそのまま使用（初期値はloadLandPrice/resetLandPriceで設定済み）
+  // 容量変更時のみ土地価格を自動再計算（土地価格を直接操作した場合はスキップ）
+  if (!skipLandUpdate && _landPricePerM2) {
+    const requiredArea = Math.round(cap_mwh * 80 * 1.2);
+    const buyMan = Math.round(_landPricePerM2 * requiredArea / 10000);
+    const priceSlider = document.getElementById('landPrice');
+    const priceNum    = document.getElementById('landPriceNum');
+    if (priceSlider) { priceSlider.max = Math.max(buyMan * 3, 3000); priceSlider.value = buyMan; }
+    if (priceNum) priceNum.value = buyMan;
+    updateLeaseCalcFromPrice();
+  }
   const duration_h = cap_mwh / power_mw;  // 放電継続時間（時間）
 
   // ── 容量市場参加要件チェック ──
