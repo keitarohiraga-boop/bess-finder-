@@ -4006,22 +4006,15 @@ function calcSim(siteId) {
   if (_landPricePerM2) {
     const requiredArea = Math.round(cap_mwh * 80 * 1.2); // m²
     const buyMan = Math.round(_landPricePerM2 * requiredArea / 10000);
-    const priceEl = document.getElementById('landPrice');
-    const priceLbl = document.getElementById('landPriceLabel');
-    if (priceEl && priceLbl) {
-      priceEl.max = Math.max(buyMan * 3, 3000);
-      priceEl.value = buyMan;
-      priceLbl.textContent = `${buyMan.toLocaleString()}万円（必要面積 約${requiredArea.toLocaleString()}㎡）`;
+    const priceSlider = document.getElementById('landPrice');
+    const priceNum    = document.getElementById('landPriceNum');
+    if (priceSlider) {
+      priceSlider.max   = Math.max(buyMan * 3, 3000);
+      priceSlider.value = buyMan;
     }
-    // リース欄も更新
-    const leaseRate = parseFloat(document.getElementById('leaseRate')?.value || 2);
-    const leaseMan = Math.round(_landPricePerM2 * requiredArea * leaseRate / 100 / 10000);
-    const leaseEl = document.getElementById('landLease');
-    const leaseLbl = document.getElementById('landLeaseLabel');
-    if (leaseEl && leaseLbl) {
-      leaseEl.value = Math.min(leaseMan, 9990);
-      leaseLbl.textContent = `${leaseMan.toLocaleString()}万円/年`;
-    }
+    if (priceNum) priceNum.value = buyMan;
+    // リース欄も連動更新
+    updateLeaseCalcFromPrice();
   }
   const duration_h = cap_mwh / power_mw;  // 放電継続時間（時間）
 
