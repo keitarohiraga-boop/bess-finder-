@@ -3808,16 +3808,14 @@ function calcOptimalPreset(site) {
   const optimal_output_mw = Math.min(cap_from_area / 3, max_output_mw);
   const optimal_cap_mwh   = Math.max(3, optimal_output_mw * 3);  // 最低3MWh
 
-  // ④ 規模別設備単価
+  // ④ 規模別設備単価（EPC込み市場実態値）
   let unit_price, unit_label;
   if (optimal_cap_mwh >= 20) {
-    unit_price = 5.5; unit_label = "20MWh超の規模経済";
+    unit_price = 12; unit_label = "20MWh超・規模経済あり";
   } else if (optimal_cap_mwh >= 10) {
-    unit_price = 6.0; unit_label = "10-20MWhのスケールメリット";
-  } else if (optimal_cap_mwh >= 5) {
-    unit_price = 7.0; unit_label = "5-10MWh中規模";
+    unit_price = 14; unit_label = "10-20MWh中大規模";
   } else {
-    unit_price = 8.0; unit_label = "5MWh未満小規模";
+    unit_price = 15; unit_label = "10MWh未満・標準規格";
   }
 
   return {
@@ -3863,7 +3861,7 @@ function renderSimulator(site) {
         </div>
         <div class="sim-input-row">
           <label>BESS設備単価 <span id="simUnitLabel">${preset.unit_price} 万円/kWh</span></label>
-          <input type="range" id="simUnit" min="3" max="10" step="0.5" value="${preset.unit_price}"
+          <input type="range" id="simUnit" min="5" max="30" step="0.5" value="${preset.unit_price}"
             style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
         </div>
         <div class="sim-input-row">
