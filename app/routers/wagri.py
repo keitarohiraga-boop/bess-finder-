@@ -250,6 +250,21 @@ def update_all_farmclass(db: Session = Depends(get_db)):
     }
 
 
+@router.patch("/set-farmclass/{site_id}", summary="候補地のfarm_classを手動で設定（nullも可）")
+def set_farmclass(
+    site_id: int,
+    farm_class: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    site = db.get(models.Site, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="候補地が見つかりません")
+    old = site.farm_class
+    site.farm_class = farm_class if farm_class != "null" else None
+    db.commit()
+    return {"site_id": site_id, "name": site.name, "before": old, "after": site.farm_class}
+
+
 @router.get("/status", summary="WAGRI API の設定状態を確認")
 def status():
     return {
