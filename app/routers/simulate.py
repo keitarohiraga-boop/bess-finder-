@@ -70,7 +70,7 @@ class SimulateRequest(BaseModel):
     site_id: Optional[int] = None
     capacity_mwh: float = 20.0
     power_mw: float = 5.0
-    unit_price_per_kwh: float = 60.0   # 万円/kWh（設備単価）
+    unit_price_per_kwh: float = 25.0   # 万円/kWh（設備単価・EPC込み市場標準：15〜30万円/kWh）
     jepx_spread: Optional[float] = None  # 未指定時はDBから取得
     land_cost_per_m2: Optional[int] = None
     area_m2: Optional[float] = None
