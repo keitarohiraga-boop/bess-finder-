@@ -1868,7 +1868,7 @@ function estimateIRR(site) {
     const spread = site.jepx?.spread ?? 5.0;
     const area = site.jepx?.area ?? "東京";
     const capPrice = getCapacityPrice(area, CAPACITY_YEARS[CAPACITY_YEARS.length-1]).price;
-    const rev = spread * cap_kwh * 300 * 0.88 + power_kw * capPrice + power_kw * 2000;
+    const rev = spread * cap_kwh * 365 * 0.88 + power_kw * capPrice + power_kw * 5000;
     const capex = p.unit_price * 10000 * cap_kwh;
     const net = rev - capex * 0.02;
     return calcIRR(calc20YearCF(net, capex));
@@ -3438,10 +3438,11 @@ async function loadLandPrice(lat, lng, containerId) {
       _landPricePerM2 = firstSource.price_per_m2;
       const area = _currentSite.area;
       const totalManyen = Math.round(firstSource.price_per_m2 * area / 10000);
-      const el2 = document.getElementById('landPrice');
-      if (el2) { el2.max = Math.max(totalManyen * 3, 3000); el2.value = totalManyen; }
-      const lbl = document.getElementById('landPriceLabel');
-      if (lbl) lbl.textContent = `${totalManyen.toLocaleString()}万円`;
+      const maxVal = Math.max(totalManyen * 3, 3000);
+      const slider = document.getElementById('landPrice');
+      const numInput = document.getElementById('landPriceNum');
+      if (slider) { slider.max = maxVal; slider.value = totalManyen; }
+      if (numInput) { numInput.value = totalManyen; }
       updateLeaseCalc();
       if (_currentSite) calcSim(_currentSite.id);
     }
@@ -3552,8 +3553,38 @@ const NATIONAL_SUBSIDIES = [
 ];
 
 // ===== 土地コスト管理 =====
-let _landMode = 'buy';           // 'buy' or 'lease'
-let _landPricePerM2 = null;      // 公示地価 円/㎡（実データ）
+let _landMode = 'buy';
+let _landPricePerM2 = null;
+
+function syncLandPrice(source) {
+  const slider = document.getElementById('landPrice');
+  const num    = document.getElementById('landPriceNum');
+  if (!slider || !num) return;
+  if (source === 'slider') {
+    num.value = slider.value;
+  } else {
+    const v = Math.max(0, parseInt(num.value) || 0);
+    num.value = v;
+    if (v > parseInt(slider.max)) slider.max = v * 2;
+    slider.value = Math.min(v, parseInt(slider.max));
+  }
+  if (_currentSite) calcSim(_currentSite.id);
+}
+
+function syncLandLease(source) {
+  const slider = document.getElementById('landLease');
+  const num    = document.getElementById('landLeaseNum');
+  if (!slider || !num) return;
+  if (source === 'slider') {
+    num.value = slider.value;
+  } else {
+    const v = Math.max(0, parseInt(num.value) || 0);
+    num.value = v;
+    if (v > parseInt(slider.max)) slider.max = v * 2;
+    slider.value = Math.min(v, parseInt(slider.max));
+  }
+  if (_currentSite) calcSim(_currentSite.id);
+}
 
 function setLandMode(mode) {
   _landMode = mode;
@@ -3838,17 +3869,29 @@ function renderSimulator(site) {
       </div>
       <div id="landBuySection">
         <div class="sim-input-row">
-          <label>土地取得価格 <span id="landPriceLabel">取得中...</span></label>
-          <input type="range" id="landPrice" min="0" max="5000" step="50" value="0"
-            style="width:100%;accent-color:#f59e0b;cursor:pointer" oninput="document.getElementById('landPriceLabel').textContent=Number(this.value).toLocaleString()+'万円';if(_currentSite)calcSim(_currentSite.id)">
+          <label>土地取得価格</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+            <input type="range" id="landPrice" min="0" max="5000" step="50" value="0"
+              style="flex:1;accent-color:#f59e0b;cursor:pointer" oninput="syncLandPrice('slider')">
+            <input type="number" id="landPriceNum" min="0" step="50" value="0"
+              style="width:90px;background:#0f172a;border:1px solid #475569;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none;text-align:right"
+              oninput="syncLandPrice('num')">
+            <span style="font-size:11px;color:#64748b;white-space:nowrap">万円</span>
+          </div>
         </div>
-        <div style="font-size:10px;color:#475569;margin-bottom:4px">公示地価ベースで自動計算。実際の取得価格に合わせて調整可能。→ CAPEXに加算</div>
+        <div style="font-size:10px;color:#475569;margin-bottom:4px">公示地価ベースで自動計算。直接入力またはスライダーで調整可能。→ CAPEXに加算</div>
       </div>
       <div id="landLeaseSection" style="display:none">
         <div class="sim-input-row">
-          <label>年間地代 <span id="landLeaseLabel">－万円/年</span></label>
-          <input type="range" id="landLease" min="0" max="2000" step="10" value="0"
-            style="width:100%;accent-color:#f59e0b;cursor:pointer" oninput="document.getElementById('landLeaseLabel').textContent=Number(this.value).toLocaleString()+'万円/年';if(_currentSite)calcSim(_currentSite.id)">
+          <label>年間地代</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+            <input type="range" id="landLease" min="0" max="2000" step="10" value="0"
+              style="flex:1;accent-color:#f59e0b;cursor:pointer" oninput="syncLandLease('slider')">
+            <input type="number" id="landLeaseNum" min="0" step="10" value="0"
+              style="width:90px;background:#0f172a;border:1px solid #475569;color:#e2e8f0;padding:5px 8px;border-radius:6px;font-size:12px;outline:none;text-align:right"
+              oninput="syncLandLease('num')">
+            <span style="font-size:11px;color:#64748b;white-space:nowrap">万円/年</span>
+          </div>
         </div>
         <div class="sim-input-row">
           <label>リース率 <span id="leaseRateLabel">2.0%</span></label>
@@ -3882,8 +3925,8 @@ function renderSimulator(site) {
           <div style="font-size:9px;color:#475569">年間の容量低下率</div>
         </div>
         <div class="sim-input-row">
-          <label>年間充放電サイクル <span id="advCyclesLabel">300</span>回</label>
-          <input type="range" id="advCycles" min="100" max="365" step="10" value="300"
+          <label>年間充放電サイクル <span id="advCyclesLabel">365</span>回</label>
+          <input type="range" id="advCycles" min="100" max="365" step="10" value="365"
             style="width:100%;accent-color:#94a3b8;cursor:pointer"
             oninput="document.getElementById('advCyclesLabel').textContent=this.value;if(_currentSite)calcSim(_currentSite.id)">
           <div style="font-size:9px;color:#475569">1日1回=365回が最大</div>
@@ -3981,7 +4024,7 @@ function calcSim(siteId) {
 
   const rev_jepx    = spread * cap_kwh * cycles * eff;
   const rev_cap     = capMktEligible ? power_kw * capPrice : 0;
-  const rev_reg     = power_kw * 2000;
+  const rev_reg     = power_kw * 5000;   // 需給調整市場（GF/LFC）：市場実績 28〜39円/ΔkWh → 約5,000円/kW/年
   const longdec_price = 16747;
   const rev_longdec = capMktEligible ? power_kw * longdec_price : 0;
   const rev_total = rev_jepx + rev_cap + rev_reg;
