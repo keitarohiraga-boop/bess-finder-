@@ -92,6 +92,7 @@ def evaluate(
     curtailment = db.get(models.CurtailmentData, jepx_area)
     fit_solar   = db.get(models.FitSolarData,    jepx_area)
     solar       = db.get(models.SolarPotential,  prefecture)
+    ev          = db.get(models.EVAdoptionData,  prefecture)
 
     score = calc_score(subst_dist, area_m2, jepx, curtailment, solar, ev)
 
