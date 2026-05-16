@@ -4616,10 +4616,16 @@ function renderCaseTab(site) {
         </div>
         <div id="approvalMsgBox-${site.id}"
           style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;font-size:11px;color:#cbd5e1;white-space:pre-wrap;line-height:1.7;margin-bottom:8px">${generateApprovalMessage(site)}</div>
-        <button onclick="copyApprovalMessage(${site.id})"
-          style="width:100%;padding:7px;background:#92400e;border:1px solid #f59e0b;color:#fbbf24;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
-          📋 メッセージをコピー
-        </button>
+        <div style="display:flex;gap:6px">
+          <button onclick="copyApprovalMessage(${site.id})"
+            style="flex:1;padding:7px;background:#1e293b;border:1px solid #f59e0b;color:#fbbf24;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
+            📋 コピー
+          </button>
+          <button id="slackSendBtn-${site.id}" onclick="sendSlackApproval(${site.id})"
+            style="flex:1;padding:7px;background:#92400e;border:1px solid #f59e0b;color:#fbbf24;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
+            💬 Slackに送信
+          </button>
+        </div>
       </div>
       <!-- 承認ボタン（承認待ち時） -->
       <div style="background:#0f172a;border:1px solid #4ade80;border-radius:8px;padding:10px;margin-bottom:10px">
@@ -4706,9 +4712,60 @@ function copyApprovalMessage(siteId) {
   const el = document.getElementById(`approvalMsgBox-${siteId}`);
   if (!el) return;
   navigator.clipboard.writeText(el.textContent).then(() => {
-    const btn = el.nextElementSibling;
-    if (btn) { btn.textContent = "✅ コピー完了！"; setTimeout(() => btn.textContent = "📋 メッセージをコピー", 2000); }
+    const btn = document.querySelector(`[onclick="copyApprovalMessage(${siteId})"]`);
+    if (btn) { btn.textContent = "✅ コピー完了！"; setTimeout(() => btn.textContent = "📋 コピー", 2000); }
   });
+}
+
+async function sendSlackApproval(siteId) {
+  const btn = document.getElementById(`slackSendBtn-${siteId}`);
+  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+  const c = _caseMap[siteId];
+  if (!site) return;
+
+  const scores = calcCategoryScores(site, _currentHazard);
+  const overall = calcOverallScore(scores);
+  const irrVal = document.getElementById(`irrResult-${siteId}`)?.dataset?.irr;
+
+  btn.textContent = "送信中...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/slack/notify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message_type: "approval_request",
+        payload: {
+          site_id:   siteId,
+          case_id:   c?.id,
+          site_name: site.name || site.address,
+          score:     overall,
+          irr:       irrVal ? parseFloat(irrVal) : null,
+          assignee:  c?.assignee || "—",
+          case_type: c?.case_type || "自社",
+          status:    c?.status || "承認待ち",
+          note:      c?.notes?.slice(-1)[0]?.text || "",
+        }
+      })
+    });
+    if (res.ok) {
+      btn.textContent = "✅ 送信済み";
+      btn.style.background = "#14532d";
+      btn.style.borderColor = "#4ade80";
+      btn.style.color = "#4ade80";
+    } else {
+      const err = await res.json();
+      btn.textContent = "❌ 送信失敗";
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = "💬 Slackに送信"; btn.style.cssText = ""; }, 3000);
+      console.error("Slack送信エラー:", err);
+    }
+  } catch (e) {
+    btn.textContent = "❌ エラー";
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = "💬 Slackに送信"; btn.disabled = false; }, 3000);
+  }
 }
 
 // ===== 近隣不動産仲介会社 =====
