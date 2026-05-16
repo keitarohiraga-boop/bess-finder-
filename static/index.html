@@ -1855,6 +1855,7 @@ let WEIGHTS = { location: 30, revenue: 40, demand: 15, risk: 15 };
 // ----- 右パネル状態（showDetail()で更新） -----
 let _currentSite   = null; // 現在詳細表示中の候補地オブジェクト
 let _currentHazard = null; // J-SHISから非同期取得した地震ハザードデータ
+const _irrCache    = {};   // siteId → IRR値(%) のキャッシュ（Slack送信等で参照）
 
 const PRESETS = {
   balance:  { location: 25, revenue: 35, demand: 20, risk: 20 },
@@ -3457,6 +3458,7 @@ function renderFinancials(netRev, capex, spread, cap_kwh, cycles, eff) {
   const fmtM = n => n>=1e8?`${(n/1e8).toFixed(1)}億円`:`${(n/1e6).toFixed(1)}百万円`;
   const irrPct = (irr*100).toFixed(1);
   const irrColor = irr>=0.1?'#4ade80':irr>=0.07?'#fbbf24':'#f87171';
+  if (_currentSite) _irrCache[_currentSite.id] = parseFloat(irrPct);
 
   // 月次収益
   const monthlyRevs = MONTHLY_MULT.map(m => (netRev/12) * (m/MONTH_AVG));
@@ -4740,9 +4742,23 @@ async function sendSlackApproval(siteId) {
   const c = _caseMap[siteId];
   if (!site) return;
 
+  // 担当者未入力バリデーション
+  if (!c?.assignee?.trim()) {
+    btn.textContent = "⚠️ 担当者を入力してください";
+    btn.style.background = "#450a0a";
+    btn.style.borderColor = "#f87171";
+    btn.style.color = "#f87171";
+    setTimeout(() => {
+      btn.textContent = "💬 Slackに送信";
+      btn.style.cssText = "";
+    }, 2500);
+    document.getElementById(`assigneeInput-${siteId}`)?.focus();
+    return;
+  }
+
   const scores = calcCategoryScores(site, _currentHazard);
   const overall = calcOverallScore(scores);
-  const irrVal = document.getElementById(`irrResult-${siteId}`)?.dataset?.irr;
+  const irrVal = _irrCache[siteId] ?? null;
 
   btn.textContent = "送信中...";
   btn.disabled = true;
