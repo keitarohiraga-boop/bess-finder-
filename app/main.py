@@ -6,7 +6,7 @@ import os
 
 from app.database import engine
 from app import models
-from app.routers import sites, jepx, substations, solar, curtailment, hazard, fit_solar, evaluate, demand, outage_ev, bess, reinfolib, cases
+from app.routers import sites, jepx, substations, solar, curtailment, hazard, fit_solar, evaluate, demand, outage_ev, bess, reinfolib, cases, slack
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -36,6 +36,7 @@ app.include_router(outage_ev.router, prefix="/api/v1")
 app.include_router(bess.router, prefix="/api/v1")
 app.include_router(reinfolib.router, prefix="/api/v1")
 app.include_router(cases.router, prefix="/api/v1")
+app.include_router(slack.router, prefix="/api/v1")
 
 # フロントエンドの静的ファイルを配信
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
