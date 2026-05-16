@@ -554,6 +554,33 @@
     .cat-score-num { font-size: 32px; font-weight: 700; line-height: 1; }
     .cat-score-label { font-size: 11px; color: #64748b; margin-top: 3px; }
 
+    /* ===== Agent UI ===== */
+    .agent-menu-btn {
+      font-size:11px;padding:5px 10px;background:#0f172a;border:1px solid #6366f1;
+      color:#a5b4fc;border-radius:6px;cursor:pointer;white-space:nowrap;font-weight:600;
+    }
+    .agent-menu-btn:hover { background:#1e1b4b; }
+    .agent-dropdown {
+      display:none;position:absolute;top:calc(100% + 4px);right:0;
+      background:#1e293b;border:1px solid #6366f1;border-radius:8px;
+      min-width:210px;z-index:300;box-shadow:0 4px 16px rgba(0,0,0,0.5);overflow:hidden;
+    }
+    .agent-dropdown button {
+      display:block;width:100%;padding:10px 14px;background:none;border:none;
+      border-bottom:1px solid #334155;color:#c7d2fe;font-size:12px;cursor:pointer;text-align:left;
+    }
+    .agent-dropdown button:last-child { border-bottom:none; }
+    .agent-dropdown button:hover { background:#312e81; }
+    /* Agent実行ログ */
+    .agent-log {
+      font-size:11px;line-height:1.7;color:#94a3b8;
+      max-height:400px;overflow-y:auto;
+    }
+    .agent-log .log-tool { color:#6366f1;font-weight:600; }
+    .agent-log .log-text { color:#e2e8f0;white-space:pre-wrap; }
+    .agent-log .log-done { color:#4ade80;font-weight:600; }
+    .agent-log .log-err  { color:#f87171; }
+
     /* ===== 更新履歴パネル ===== */
     .changelog-wrap {
       display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0;
@@ -1970,11 +1997,13 @@ function switchTab(name) {
     b.style.borderBottomColor = isActive ? (name === "case" ? "#f59e0b" : "#38bdf8") : "transparent";
     b.style.color = isActive ? (name === "case" ? "#f59e0b" : "#38bdf8") : "#64748b";
   });
-  ["location","revenue","demand","risk","case"].forEach(tab => {
+  ["location","revenue","demand","risk","case","agent"].forEach(tab => {
     const card = document.getElementById("scoreCard-" + tab);
     if (!card) return;
     const isActive = tab === name;
-    card.style.borderColor = isActive ? (tab === "case" ? "#f59e0b" : "#38bdf8") : "transparent";
+    card.style.borderColor = isActive
+      ? (tab === "case" ? "#f59e0b" : tab === "agent" ? "#6366f1" : "#38bdf8")
+      : "transparent";
   });
 }
 
@@ -2005,18 +2034,33 @@ function showDetail(site) {
         <div class="score-big" id="overallScore" style="color:${sc}">${overall}<span style="font-size:18px;color:#64748b">/100</span></div>
         <div style="color:${sc};font-size:12px;font-weight:600;margin-top:2px">${sl}</div>
       </div>
-      ${(() => {
-        const c = _caseMap[site.id];
-        const sColor = c ? {"発見":"#64748b","精査中":"#38bdf8","承認待ち":"#fbbf24","アプローチ中":"#4ade80","契約済":"#6ee7b7","見送り":"#475569"}[c.status]||"#64748b" : "#475569";
-        const sEmoji = c ? STATUS_EMOJI[c.status]||"📁" : "📁";
-        const sLabel = c ? c.status : "未登録";
-        return `<div id="scoreCard-case" onclick="switchTab('case')" class="case-only"
-          style="background:#0f172a;border-radius:8px;padding:10px 12px;text-align:center;cursor:pointer;border:1px solid transparent;transition:border-color 0.15s;min-width:54px">
-          <div style="font-size:22px;line-height:1">${sEmoji}</div>
-          <div style="font-size:9px;color:#64748b;margin-top:3px">案件</div>
-          <div style="font-size:9px;color:${sColor};margin-top:1px;font-weight:600">${sLabel}</div>
-        </div>`;
-      })()}
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        <!-- Agentドロップダウン -->
+        <div style="position:relative" id="agentMenuWrap-${site.id}">
+          <button class="agent-menu-btn" onclick="toggleAgentMenu(${site.id})">🤖 Agentに依頼 ▼</button>
+          <div class="agent-dropdown" id="agentMenuDropdown-${site.id}">
+            <button onclick="closeAgentMenu(${site.id});runAgentWorkflow('approval_package',${site.id})">
+              📋 承認依頼パッケージを作成
+            </button>
+            <button onclick="closeAgentMenu(${site.id});runAgentWorkflow('bulk_review',null)">
+              🔍 スコア上位候補を一括精査
+            </button>
+          </div>
+        </div>
+        <!-- 案件ボタン -->
+        ${(() => {
+          const c = _caseMap[site.id];
+          const sColor = c ? {"発見":"#64748b","精査中":"#38bdf8","承認待ち":"#fbbf24","アプローチ中":"#4ade80","契約済":"#6ee7b7","見送り":"#475569"}[c.status]||"#64748b" : "#475569";
+          const sEmoji = c ? STATUS_EMOJI[c.status]||"📁" : "📁";
+          const sLabel = c ? c.status : "未登録";
+          return `<div id="scoreCard-case" onclick="switchTab('case')" class="case-only"
+            style="background:#0f172a;border-radius:8px;padding:8px 10px;text-align:center;cursor:pointer;border:1px solid transparent;transition:border-color 0.15s;min-width:54px">
+            <div style="font-size:20px;line-height:1">${sEmoji}</div>
+            <div style="font-size:9px;color:#64748b;margin-top:3px">案件</div>
+            <div style="font-size:9px;color:${sColor};margin-top:1px;font-weight:600">${sLabel}</div>
+          </div>`;
+        })()}
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:10px">
       ${[["立地","catLocScore",scores.locationScore,"location"],
@@ -2175,6 +2219,16 @@ function showDetail(site) {
     <!-- 案件管理タブ（社内モードのみ表示） -->
     <div id="tab-case" class="tab-content case-only">
       <div id="caseTabContent" style="padding-top:12px">${renderCaseTab(site)}</div>
+    </div>
+
+    <!-- Agentタブ -->
+    <div id="tab-agent" class="tab-content case-only">
+      <div style="padding-top:12px">
+        <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em">🤖 Agent実行ログ</div>
+        <div id="agentLogArea" class="agent-log">
+          <div style="color:#475569;font-style:italic">「Agentに依頼 ▼」からワークフローを選択してください</div>
+        </div>
+      </div>
     </div>
   `;
 
@@ -3031,6 +3085,114 @@ function openChangelogModal() {
   ov.onclick = function(e) { if (e.target === ov) closeChangelogModal(); };
   document.body.appendChild(ov);
 }
+// ===== Claude Agent =====
+
+function toggleAgentMenu(siteId) {
+  const dd = document.getElementById(`agentMenuDropdown-${siteId}`);
+  if (!dd) return;
+  const isOpen = dd.style.display === "block";
+  dd.style.display = isOpen ? "none" : "block";
+  if (!isOpen) {
+    setTimeout(() => document.addEventListener("click", function h(e) {
+      const wrap = document.getElementById(`agentMenuWrap-${siteId}`);
+      if (wrap && !wrap.contains(e.target)) {
+        dd.style.display = "none";
+        document.removeEventListener("click", h);
+      }
+    }), 10);
+  }
+}
+
+function closeAgentMenu(siteId) {
+  const dd = document.getElementById(`agentMenuDropdown-${siteId}`);
+  if (dd) dd.style.display = "none";
+}
+
+let _agentRunning = false;
+
+async function runAgentWorkflow(workflow, siteId) {
+  if (_agentRunning) { alert("Agentが実行中です。完了をお待ちください。"); return; }
+  _agentRunning = true;
+
+  // Agentタブに切り替えてログをクリア
+  switchTab("agent");
+  const logArea = document.getElementById("agentLogArea");
+  if (!logArea) { _agentRunning = false; return; }
+  logArea.innerHTML = `<div class="log-tool">▶ ワークフロー開始: ${
+    workflow === "approval_package" ? "承認依頼パッケージ作成" : "複数候補一括精査"
+  }</div>\n`;
+
+  const body = { workflow, params: {} };
+  if (siteId) body.site_id = siteId;
+
+  try {
+    const res = await fetch(`${API_BASE}/agent/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      logArea.innerHTML += `<div class="log-err">❌ エラー: ${err.detail || res.status}</div>`;
+      _agentRunning = false;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          _renderAgentEvent(logArea, ev);
+        } catch(e) {}
+      }
+      logArea.scrollTop = logArea.scrollHeight;
+    }
+  } catch(e) {
+    logArea.innerHTML += `<div class="log-err">❌ 接続エラー: ${e.message}</div>`;
+  } finally {
+    _agentRunning = false;
+    logArea.scrollTop = logArea.scrollHeight;
+  }
+}
+
+function _renderAgentEvent(logArea, ev) {
+  const event = ev.event;
+  if (event === "start") {
+    logArea.innerHTML += `<div class="log-tool" style="margin-top:4px">⚡ ${ev.message}</div>`;
+  } else if (event === "tool_call") {
+    const labels = {
+      get_sites: "📋 候補地一覧を取得",
+      get_site_detail: "🔍 候補地詳細を確認",
+      check_hazard: "⚠️ ハザード情報を確認",
+      check_land_price: "💰 地価情報を確認",
+      run_simulation: "📊 IRR/NPVを試算",
+      update_case: "✏️ 案件情報を更新",
+      send_slack: "💬 Slackに送信",
+    };
+    const label = labels[ev.tool] || `🔧 ${ev.tool}`;
+    logArea.innerHTML += `<div class="log-tool" style="margin-top:6px">${label}...</div>`;
+  } else if (event === "tool_result") {
+    logArea.innerHTML += `<div style="color:#475569;font-size:10px;padding-left:8px">→ 完了</div>`;
+  } else if (event === "text") {
+    logArea.innerHTML += `<div class="log-text">${ev.text}</div>`;
+  } else if (event === "done") {
+    logArea.innerHTML += `<div class="log-done" style="margin-top:8px">✅ Agent完了</div>`;
+  } else if (event === "error") {
+    logArea.innerHTML += `<div class="log-err">❌ ${ev.message}</div>`;
+  }
+}
+
 function closeChangelogModal() {
   var ov = document.getElementById("clOverlay");
   if (ov) ov.remove();
