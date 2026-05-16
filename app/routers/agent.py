@@ -23,8 +23,12 @@ from app.routers.slack import _call_slack_api, CHANNEL_ID, TEMPLATES, _now_jst
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = "claude-sonnet-4-6"
+ANTHROPIC_API_KEY    = os.getenv("ANTHROPIC_API_KEY", "")
+MODEL                = "claude-sonnet-4-6"
+COST_ALERT_USD       = float(os.getenv("ANTHROPIC_COST_ALERT_USD", "10.0"))
+# claude-sonnet-4-6 料金（USD per 1M tokens）
+PRICE_INPUT_PER_M  = 3.0
+PRICE_OUTPUT_PER_M = 15.0
 
 
 # ===== ツール定義 =====
@@ -305,6 +309,55 @@ def _sse(event: str, data: dict) -> str:
     return f"data: {json.dumps({'event': event, **data}, ensure_ascii=False)}\n\n"
 
 
+def _calc_cost(input_tokens: int, output_tokens: int) -> float:
+    return (input_tokens * PRICE_INPUT_PER_M + output_tokens * PRICE_OUTPUT_PER_M) / 1_000_000
+
+
+def _monthly_cost(db: Session) -> float:
+    """今月の累計コスト（USD）を取得"""
+    now = datetime.now(timezone.utc)
+    month_start = f"{now.year}-{now.month:02d}-01"
+    logs = db.query(models.AgentUsageLog).filter(
+        models.AgentUsageLog.executed_at >= month_start
+    ).all()
+    return sum(l.estimated_usd for l in logs)
+
+
+def _save_usage(db: Session, workflow: str, input_tokens: int, output_tokens: int):
+    cost = _calc_cost(input_tokens, output_tokens)
+    log = models.AgentUsageLog(
+        executed_at=datetime.now(timezone.utc).isoformat(),
+        workflow=workflow,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        estimated_usd=cost,
+    )
+    db.add(log)
+    db.commit()
+
+    # 月間累計がアラート閾値を超えたらSlack通知
+    monthly = _monthly_cost(db)
+    if monthly >= COST_ALERT_USD and CHANNEL_ID:
+        try:
+            alert_blocks = [
+                {"type": "header", "text": {"type": "plain_text", "text": "⚠️ Anthropic API 使用量アラート", "emoji": True}},
+                {"type": "section", "fields": [
+                    {"type": "mrkdwn", "text": f"*今月の累計コスト*\n${monthly:.2f} USD"},
+                    {"type": "mrkdwn", "text": f"*設定アラート閾値*\n${COST_ALERT_USD:.2f} USD"},
+                ]},
+                {"type": "context", "elements": [
+                    {"type": "mrkdwn", "text": "Anthropic Console で使用量を確認してください: https://console.anthropic.com/settings/usage"}
+                ]}
+            ]
+            _call_slack_api("chat.postMessage", {
+                "channel": CHANNEL_ID,
+                "text": f"[BESS Agent] API使用量アラート: 今月${monthly:.2f}USD",
+                "blocks": alert_blocks,
+            })
+        except Exception:
+            pass  # Slack通知失敗はサイレントに無視
+
+
 async def _run_agent(workflow: str, site_id: int | None, db: Session) -> AsyncGenerator[str, None]:
     if not ANTHROPIC_API_KEY:
         yield _sse("error", {"message": "ANTHROPIC_API_KEY が未設定です"})
@@ -312,7 +365,6 @@ async def _run_agent(workflow: str, site_id: int | None, db: Session) -> AsyncGe
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    # ワークフロー別システムプロンプト
     system = (
         "あなたはBESS（蓄電池施設）候補地の調査エージェントです。"
         "与えられたタスクをツールを使って自律的に実行し、結果を日本語で報告してください。"
@@ -320,46 +372,59 @@ async def _run_agent(workflow: str, site_id: int | None, db: Session) -> AsyncGe
     )
 
     messages = [{"role": "user", "content": workflow}]
-
     yield _sse("start", {"message": f"タスク開始: {workflow[:50]}..."})
 
-    # tool use ループ
-    while True:
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=4096,
-            system=system,
-            tools=TOOLS,
-            messages=messages,
-        )
+    total_input = 0
+    total_output = 0
 
-        # テキスト出力をストリーミング
-        for block in response.content:
-            if block.type == "text" and block.text:
-                yield _sse("text", {"text": block.text})
+    try:
+        while True:
+            response = client.messages.create(
+                model=MODEL,
+                max_tokens=4096,
+                system=system,
+                tools=TOOLS,
+                messages=messages,
+            )
 
-        if response.stop_reason == "end_turn":
-            break
+            total_input  += response.usage.input_tokens
+            total_output += response.usage.output_tokens
 
-        if response.stop_reason != "tool_use":
-            break
+            for block in response.content:
+                if block.type == "text" and block.text:
+                    yield _sse("text", {"text": block.text})
 
-        # ツール呼び出しを実行
-        tool_results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            yield _sse("tool_call", {"tool": block.name, "input": block.input})
-            result = _run_tool(block.name, block.input, db)
-            yield _sse("tool_result", {"tool": block.name, "result": result[:200]})
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": result,
+            if response.stop_reason == "end_turn":
+                break
+            if response.stop_reason != "tool_use":
+                break
+
+            tool_results = []
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+                yield _sse("tool_call", {"tool": block.name, "input": block.input})
+                result = _run_tool(block.name, block.input, db)
+                yield _sse("tool_result", {"tool": block.name, "result": result[:200]})
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result,
+                })
+
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": tool_results})
+
+    finally:
+        # 使用量を記録（エラー時も記録）
+        if total_input + total_output > 0:
+            cost = _calc_cost(total_input, total_output)
+            yield _sse("usage", {
+                "input_tokens": total_input,
+                "output_tokens": total_output,
+                "cost_usd": round(cost, 4),
             })
-
-        messages.append({"role": "assistant", "content": response.content})
-        messages.append({"role": "user", "content": tool_results})
+            _save_usage(db, workflow.split("\n")[0][:50], total_input, total_output)
 
     yield _sse("done", {"message": "完了"})
 

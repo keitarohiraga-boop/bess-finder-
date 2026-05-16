@@ -3186,6 +3186,8 @@ function _renderAgentEvent(logArea, ev) {
     logArea.innerHTML += `<div style="color:#475569;font-size:10px;padding-left:8px">→ 完了</div>`;
   } else if (event === "text") {
     logArea.innerHTML += `<div class="log-text">${ev.text}</div>`;
+  } else if (event === "usage") {
+    logArea.innerHTML += `<div style="color:#475569;font-size:10px;margin-top:4px">📊 トークン使用: 入力${ev.input_tokens.toLocaleString()} / 出力${ev.output_tokens.toLocaleString()} / 推定$${ev.cost_usd}</div>`;
   } else if (event === "done") {
     logArea.innerHTML += `<div class="log-done" style="margin-top:8px">✅ Agent完了</div>`;
   } else if (event === "error") {

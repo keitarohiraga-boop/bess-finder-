@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, DateTime
 from app.database import Base
 
 
@@ -139,3 +139,15 @@ class JepxAreaMetrics(Base):
     spread = Column(Float)          # ピーク・オフピーク価格差
     volatility = Column(Float)      # 価格変動率（標準偏差）
     jepx_score = Column(Integer)    # BESS収益性スコア（0〜100）
+
+
+class AgentUsageLog(Base):
+    """Anthropic API トークン使用量ログ"""
+    __tablename__ = "agent_usage_log"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    executed_at    = Column(String, nullable=False)   # ISO8601 UTC
+    workflow       = Column(String)                   # approval_package / bulk_review
+    input_tokens   = Column(Integer, default=0)
+    output_tokens  = Column(Integer, default=0)
+    estimated_usd  = Column(Float, default=0.0)       # 概算コスト（USD）
