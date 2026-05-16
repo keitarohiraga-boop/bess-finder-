@@ -4750,7 +4750,9 @@ async function sendSlackApproval(siteId) {
     btn.style.color = "#f87171";
     setTimeout(() => {
       btn.textContent = "💬 Slackに送信";
-      btn.style.cssText = "";
+      btn.style.background = "#92400e";
+      btn.style.borderColor = "#f59e0b";
+      btn.style.color = "#fbbf24";
     }, 2500);
     document.getElementById(`assigneeInput-${siteId}`)?.focus();
     return;
@@ -4791,7 +4793,13 @@ async function sendSlackApproval(siteId) {
       const err = await res.json();
       btn.textContent = "❌ 送信失敗";
       btn.disabled = false;
-      setTimeout(() => { btn.textContent = "💬 Slackに送信"; btn.style.cssText = ""; }, 3000);
+      setTimeout(() => {
+        btn.textContent = "💬 Slackに送信";
+        btn.style.background = "#92400e";
+        btn.style.borderColor = "#f59e0b";
+        btn.style.color = "#fbbf24";
+        btn.disabled = false;
+      }, 3000);
       console.error("Slack送信エラー:", err);
     }
   } catch (e) {
