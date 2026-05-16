@@ -41,14 +41,18 @@ def estimate_net_revenue(
     jepx_spread: float,
     capacity_mwh: float,
     power_mw: float,
-    cap_price_per_kw: float = 14000,
-    ancillary_per_kw: float = 2000,
-    cycles_per_year: int = 300,
+    cap_price_per_kw: float = 18000,   # 容量市場（円/kW/年）
+    ancillary_per_kw: float = 5000,    # 調整力等（GF/LFC）円/kW/年
+    cycles_per_year: int = 365,        # 日次裁定：1日1サイクル×365日
     efficiency: float = 0.88,
 ) -> float:
-    """年間純収益（円）を試算"""
-    cap_kwh   = capacity_mwh * 1000                              # MWh → kWh
-    power_kw  = power_mw * 1000                                  # MW  → kW
+    """
+    年間収益（円）を試算。
+    収益源: JEPX価格差裁定 + 容量市場 + 調整力
+    ※長期脱炭素電源オークション参加時はcap_price_per_kwが大幅に上昇（40,000円/kW超）
+    """
+    cap_kwh   = capacity_mwh * 1000
+    power_kw  = power_mw * 1000
     arbitrage = jepx_spread * cap_kwh * cycles_per_year * efficiency
     capacity  = power_kw * cap_price_per_kw
     ancillary = power_kw * ancillary_per_kw
@@ -57,10 +61,11 @@ def estimate_net_revenue(
 
 def estimate_capex(
     capacity_mwh: float,
-    unit_price_per_kwh: float = 25,  # 万円/kWh（市場標準：20〜40万円/kWh）
+    unit_price_per_kwh: float = 15,
+    # 標準規格（8MWh未満/2MW未満）: 15万円/kWh × 4,000kWh = 6億円
 ) -> float:
     """設備投資額（円）を試算"""
-    cap_kwh = capacity_mwh * 1000   # MWh → kWh
+    cap_kwh = capacity_mwh * 1000
     return unit_price_per_kwh * 10000 * cap_kwh
 
 
@@ -68,10 +73,10 @@ def estimate_capex(
 
 class SimulateRequest(BaseModel):
     site_id: Optional[int] = None
-    capacity_mwh: float = 20.0
-    power_mw: float = 5.0
-    unit_price_per_kwh: float = 25.0   # 万円/kWh（設備単価・EPC込み市場標準：15〜30万円/kWh）
-    jepx_spread: Optional[float] = None  # 未指定時はDBから取得
+    capacity_mwh: float = 4.0          # 標準規格：8MWh未満
+    power_mw: float = 2.0              # 標準規格：2MW（2,000kW）未満
+    unit_price_per_kwh: float = 15.0   # 万円/kWh（EPC込み）→ 4MWh × 15万 = 6億円
+    jepx_spread: Optional[float] = None
     land_cost_per_m2: Optional[int] = None
     area_m2: Optional[float] = None
     discount_rate: float = 0.08

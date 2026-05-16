@@ -245,9 +245,9 @@ def _tool_check_land_price(inputs: dict, db: Session) -> str:
 def _tool_run_simulation(inputs: dict, db: Session) -> str:
     req = SimulateRequest(
         site_id=inputs["site_id"],
-        capacity_mwh=inputs.get("capacity_mwh", 20.0),
-        power_mw=inputs.get("power_mw", 5.0),
-        unit_price_per_kwh=inputs.get("unit_price_per_kwh", 60.0),
+        capacity_mwh=inputs.get("capacity_mwh", 4.0),
+        power_mw=inputs.get("power_mw", 2.0),
+        unit_price_per_kwh=inputs.get("unit_price_per_kwh", 15.0),
     )
     result = simulate(req, db)
     return json.dumps(result, ensure_ascii=False)
