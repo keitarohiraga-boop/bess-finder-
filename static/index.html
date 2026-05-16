@@ -4785,6 +4785,9 @@ async function sendSlackApproval(siteId) {
       })
     });
     if (res.ok) {
+      const data = await res.json();
+      // tsをキャッシュに保存（承認・見送り時のスレッド返信に使用）
+      if (data.ts && _caseMap[siteId]) _caseMap[siteId].slack_thread_url = data.ts;
       btn.textContent = "✅ 送信済み";
       btn.style.background = "#14532d";
       btn.style.borderColor = "#4ade80";
@@ -4994,6 +4997,7 @@ async function approveCase(siteId) {
   const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
   renderAll();
   if (site) refreshCaseTab(site);
+  await _postSlackResult(siteId, true, "");
 }
 
 async function rejectCase(siteId) {
@@ -5002,6 +5006,32 @@ async function rejectCase(siteId) {
   const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
   renderAll();
   if (site) refreshCaseTab(site);
+  await _postSlackResult(siteId, false, reason || "");
+}
+
+async function _postSlackResult(siteId, approved, reason) {
+  const c = _caseMap[siteId];
+  const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+  const threadTs = c?.slack_thread_url;
+  if (!threadTs) return; // 承認依頼をSlack送信していない場合はスキップ
+  try {
+    await fetch(`${API_BASE}/slack/notify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message_type: "approval_result",
+        thread_ts: threadTs,
+        payload: {
+          site_name: site?.name || site?.address || "—",
+          assignee:  c?.assignee || "—",
+          approved,
+          reason,
+        }
+      })
+    });
+  } catch(e) {
+    console.warn("Slackスレッド返信失敗:", e);
+  }
 }
 
 // ===== フィルターパネル折りたたみ =====
