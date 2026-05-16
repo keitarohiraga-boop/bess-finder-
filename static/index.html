@@ -822,302 +822,6 @@
       <div style="font-size:9px;color:#475569;margin-top:2px">クリックでエリア詳細表示</div>
     </div>
     <div class="datasource-note">地図：国土地理院 / データ：デモ用サンプル</div>
-    <!-- 住所で評価モーダル -->
-    <div id="evalModal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.75);z-index:400;align-items:flex-start;justify-content:center;backdrop-filter:blur(4px);padding-top:60px"
-      onclick="if(event.target===this)closeEvalModal()">
-      <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:600px;max-width:96vw;max-height:85vh;overflow-y:auto;padding:24px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <div style="font-size:17px;font-weight:700;color:#e2e8f0">🔍 住所でBESSポテンシャルを評価</div>
-            <div style="font-size:12px;color:#64748b;margin-top:3px">住所を入力するとその土地のBESS適性を自動診断します</div>
-          </div>
-          <button onclick="closeEvalModal()" style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
-        </div>
-
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <input id="evalAddress" type="text" placeholder="例：福島県郡山市田村町字守山1番地"
-            style="flex:1;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px 12px;color:#e2e8f0;font-size:13px;outline:none"
-            onkeydown="if(event.key==='Enter')runEval()">
-          <button onclick="runEval()"
-            style="background:#0ea5e9;border:none;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
-            評価する
-          </button>
-        </div>
-
-        <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">
-          <label style="font-size:12px;color:#94a3b8;white-space:nowrap">土地面積（概算）</label>
-          <input id="evalArea" type="number" value="5000" min="100" step="100"
-            style="width:120px;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px 10px;color:#e2e8f0;font-size:12px;outline:none">
-          <span style="font-size:12px;color:#64748b">㎡</span>
-          <span style="font-size:11px;color:#475569;margin-left:8px">※未入力でも評価できます</span>
-        </div>
-
-        <div id="evalResult"></div>
-      </div>
-    </div>
-
-    <!-- 重みづけパネル -->
-    <div class="weight-panel" id="weightPanel">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:13px;font-weight:700;color:#e2e8f0">⚙️ スコア重みづけ</div>
-        <button onclick="toggleWeightPanel()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:16px">✕</button>
-      </div>
-      <div class="weight-row"><label>立地スコア <span id="wLocVal">30</span>%</label>
-        <input type="range" id="wLoc" min="0" max="100" step="5" value="30" style="width:100%;accent-color:#38bdf8" oninput="updateWeights()">
-      </div>
-      <div class="weight-row"><label>収益スコア <span id="wRevVal">40</span>%</label>
-        <input type="range" id="wRev" min="0" max="100" step="5" value="40" style="width:100%;accent-color:#4ade80" oninput="updateWeights()">
-      </div>
-      <div class="weight-row"><label>需要スコア <span id="wDemVal">15</span>%</label>
-        <input type="range" id="wDem" min="0" max="100" step="5" value="15" style="width:100%;accent-color:#fbbf24" oninput="updateWeights()">
-      </div>
-      <div class="weight-row"><label>リスクスコア <span id="wRiskVal">15</span>%</label>
-        <input type="range" id="wRisk" min="0" max="100" step="5" value="15" style="width:100%;accent-color:#f87171" oninput="updateWeights()">
-      </div>
-      <div class="weight-total" id="weightTotal" style="color:#4ade80">合計: 100%</div>
-      <div class="preset-btns">
-        <button class="preset-btn" onclick="applyPreset('balance')">⚖️ バランス型</button>
-        <button class="preset-btn" onclick="applyPreset('revenue')">💰 収益重視</button>
-        <button class="preset-btn" onclick="applyPreset('risk')">🛡️ リスク重視</button>
-        <button class="preset-btn" onclick="applyPreset('demand')">🏭 需要重視</button>
-      </div>
-    </div>
-
-    <!-- 分析ロジック・データ出典モーダル -->
-    <div id="logicModal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.75);z-index:400;align-items:center;justify-content:center;backdrop-filter:blur(4px)"
-      onclick="if(event.target===this)closeLogicModal()">
-      <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:780px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:28px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <div style="font-size:18px;font-weight:700;color:#e2e8f0">📊 分析ロジック・データ出典</div>
-            <div style="font-size:12px;color:#64748b;margin-top:4px">各スコアの算出根拠と使用データソースの一覧</div>
-          </div>
-          <button onclick="closeLogicModal()"
-            style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
-        </div>
-
-        <!-- タブ切り替え -->
-        <div style="display:flex;border-bottom:1px solid #334155;margin-bottom:16px;gap:2px">
-          <button id="logicTab-data" onclick="switchLogicTab('data')"
-            style="padding:8px 16px;background:none;border:none;border-bottom:2px solid #38bdf8;color:#38bdf8;font-size:12px;font-weight:600;cursor:pointer">
-            📊 データソース
-          </button>
-          <button id="logicTab-cal" onclick="switchLogicTab('cal')"
-            style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;font-size:12px;font-weight:600;cursor:pointer">
-            📅 制度カレンダー
-          </button>
-        </div>
-
-        <!-- データソースタブ -->
-        <div id="logicContent-data">
-        <!-- スコア計算の全体像 -->
-        <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:20px;font-size:12px;color:#94a3b8;line-height:1.8">
-          <span style="color:#38bdf8;font-weight:600">総合スコアの構成：</span>
-          系統連系適合性（変電所距離）＋ 法規制クリア度（農地・用途地域）＋ ハザード安全性（洪水）＋ 立地条件（面積）<br>
-          収益性は <span style="color:#4ade80">収益シミュレーター</span> で別途試算。各指標は独立したデータソースから取得。
-        </div>
-
-        <!-- データソース一覧テーブル -->
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead>
-            <tr style="background:#0f172a;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.05em">
-              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">データソース</th>
-              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">提供機関</th>
-              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">取得指標</th>
-              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">スコアへの影響</th>
-              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">更新頻度・信頼度</th>
-            </tr>
-          </thead>
-          <tbody id="logicTableBody"></tbody>
-        </table>
-
-        <div style="margin-top:16px;font-size:11px;color:#475569;line-height:1.7">
-          ※ 収益シミュレーターの容量市場価格はOCCTOの公表結果を使用。2030年度以降は見通し値（参考）。<br>
-          ※ J-SHIS地震ハザードは候補地クリック時にリアルタイム取得。その他は定期的にデータを更新。<br>
-          ※ 農地データ（WAGRI）は申請中。取得次第、実データに切り替え予定。
-        </div>
-
-        <!-- スコア計算基準 -->
-        <div style="margin-top:24px;border-top:1px solid #334155;padding-top:20px">
-          <div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px">📊 スコア計算基準</div>
-          <div style="font-size:11px;color:#64748b;margin-bottom:14px">各カテゴリのスコアがどのように算出されるかを示します。重みは⚙️重みづけパネルで変更可能です。</div>
-
-          <!-- アコーディオン共通スタイル -->
-          <style>
-            .score-accordion { border:1px solid #334155; border-radius:8px; margin-bottom:8px; overflow:hidden; }
-            .score-accordion summary { padding:12px 16px; cursor:pointer; font-size:13px; font-weight:600; color:#e2e8f0; background:#0f172a; display:flex; justify-content:space-between; align-items:center; list-style:none; }
-            .score-accordion summary::-webkit-details-marker { display:none; }
-            .score-accordion[open] summary { border-bottom:1px solid #334155; }
-            .score-accordion .acc-body { padding:12px 16px; background:#0f172a22; font-size:11px; }
-            .score-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #1e293b; }
-            .score-row:last-child { border-bottom:none; }
-            .score-row .cond { color:#94a3b8; flex:1; }
-            .score-row .pts  { font-weight:700; min-width:60px; text-align:right; }
-            .score-sub { font-size:10px; color:#475569; margin:6px 0 8px; line-height:1.6; }
-            .score-weight { font-size:10px; color:#38bdf8; margin-bottom:8px; }
-          </style>
-
-          <!-- 立地スコア -->
-          <details class="score-accordion">
-            <summary>📍 立地スコア <span style="font-size:11px;color:#64748b">デフォルト重み 30%</span></summary>
-            <div class="acc-body">
-              <div class="score-weight">計算式: 系統連系適合性 × 60% ＋ 立地条件（面積） × 40%</div>
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">系統連系適合性（変電所距離）</div>
-              <div class="score-sub">スコア = max(0, 100 − 距離(m) ÷ 50)　※連続値</div>
-              <div class="score-row"><span class="cond">変電所 300m 未満</span><span class="pts" style="color:#4ade80">94点〜</span></div>
-              <div class="score-row"><span class="cond">変電所 700m 未満</span><span class="pts" style="color:#4ade80">86点〜</span></div>
-              <div class="score-row"><span class="cond">変電所 1,500m 未満</span><span class="pts" style="color:#fbbf24">70点〜</span></div>
-              <div class="score-row"><span class="cond">変電所 3,000m 未満</span><span class="pts" style="color:#fbbf24">40点〜</span></div>
-              <div class="score-row"><span class="cond">変電所 5,000m 以上</span><span class="pts" style="color:#f87171">0点</span></div>
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">立地条件（面積）</div>
-              <div class="score-sub">スコア = min(100, 面積㎡ ÷ 100)　※連続値</div>
-              <div class="score-row"><span class="cond">10,000㎡ 以上</span><span class="pts" style="color:#4ade80">100点</span></div>
-              <div class="score-row"><span class="cond">5,000㎡</span><span class="pts" style="color:#4ade80">50点</span></div>
-              <div class="score-row"><span class="cond">1,000㎡</span><span class="pts" style="color:#fbbf24">10点</span></div>
-            </div>
-          </details>
-
-          <!-- 収益スコア -->
-          <details class="score-accordion">
-            <summary>💰 収益スコア <span style="font-size:11px;color:#64748b">デフォルト重み 40%</span></summary>
-            <div class="acc-body">
-              <div class="score-weight">計算式: JEPX×35% ＋ 出力制御×25% ＋ FIT集積×20% ＋ 停電バックアップ×20%</div>
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">JEPX収益性スコア（エリア別）</div>
-              <div class="score-row"><span class="cond">九州エリア</span><span class="pts" style="color:#4ade80">88点</span></div>
-              <div class="score-row"><span class="cond">関西エリア</span><span class="pts" style="color:#4ade80">74点</span></div>
-              <div class="score-row"><span class="cond">四国エリア</span><span class="pts" style="color:#4ade80">68点</span></div>
-              <div class="score-row"><span class="cond">東京エリア</span><span class="pts" style="color:#fbbf24">67点</span></div>
-              <div class="score-row"><span class="cond">中部エリア</span><span class="pts" style="color:#fbbf24">62点</span></div>
-              <div class="score-row"><span class="cond">東北エリア</span><span class="pts" style="color:#fbbf24">58点</span></div>
-              <div class="score-row"><span class="cond">北海道エリア</span><span class="pts" style="color:#fbbf24">48点</span></div>
-              <div class="score-row"><span class="cond">北陸エリア</span><span class="pts" style="color:#f87171">44点</span></div>
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">出力制御ポテンシャルスコア（エリア別）</div>
-              <div class="score-row"><span class="cond">九州エリア</span><span class="pts" style="color:#4ade80">100点</span></div>
-              <div class="score-row"><span class="cond">北海道エリア</span><span class="pts" style="color:#4ade80">88点</span></div>
-              <div class="score-row"><span class="cond">東北エリア</span><span class="pts" style="color:#4ade80">68点</span></div>
-              <div class="score-row"><span class="cond">四国エリア</span><span class="pts" style="color:#fbbf24">53点</span></div>
-              <div class="score-row"><span class="cond">中国エリア</span><span class="pts" style="color:#fbbf24">42点</span></div>
-              <div class="score-row"><span class="cond">北陸エリア</span><span class="pts" style="color:#fbbf24">63点</span></div>
-              <div class="score-row"><span class="cond">東京・関西・中部エリア</span><span class="pts" style="color:#f87171">20〜33点</span></div>
-            </div>
-          </details>
-
-          <!-- 需要スコア -->
-          <details class="score-accordion">
-            <summary>🏭 需要スコア <span style="font-size:11px;color:#64748b">デフォルト重み 15%</span></summary>
-            <div class="acc-body">
-              <div class="score-weight">計算式: 太陽光ポテンシャル×40% ＋ EV・V2G需要×60%</div>
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">太陽光スコア（都道府県別・NEDO/JMA実績）</div>
-              <div class="score-row"><span class="cond">沖縄県（5.1 kWh/m²/日）</span><span class="pts" style="color:#4ade80">100点</span></div>
-              <div class="score-row"><span class="cond">宮崎・鹿児島県（4.7〜4.8）</span><span class="pts" style="color:#4ade80">76〜82点</span></div>
-              <div class="score-row"><span class="cond">九州・東海・近畿（4.2〜4.5）</span><span class="pts" style="color:#fbbf24">47〜65点</span></div>
-              <div class="score-row"><span class="cond">東北・北陸（3.4〜3.8）</span><span class="pts" style="color:#f87171">0〜24点</span></div>
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">EV・V2G需要スコア（都道府県別）</div>
-              <div class="score-row"><span class="cond">東京都（普及率3.5%・8.5万台）</span><span class="pts" style="color:#4ade80">43点</span></div>
-              <div class="score-row"><span class="cond">愛知・神奈川県（2.8〜3.0%）</span><span class="pts" style="color:#fbbf24">34〜37点</span></div>
-              <div class="score-row"><span class="cond">主要都市圏（2〜2.5%）</span><span class="pts" style="color:#fbbf24">25〜31点</span></div>
-              <div class="score-row"><span class="cond">地方（1〜1.5%）</span><span class="pts" style="color:#f87171">13〜18点</span></div>
-            </div>
-          </details>
-
-          <!-- 規制リスクスコア -->
-          <details class="score-accordion">
-            <summary>⚖️ 規制リスクスコア <span style="font-size:11px;color:#64748b">デフォルト重み 15%</span></summary>
-            <div class="acc-body">
-              <div class="score-weight">計算式: 農地規制 × 50% ＋ 洪水リスク × 50%（J-SHIS地盤データは個別表示のみ）</div>
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">農地規制スコア</div>
-              <div class="score-row"><span class="cond">農地なし（転用不要）</span><span class="pts" style="color:#4ade80">95点</span></div>
-              <div class="score-row"><span class="cond">第3種農地（転用可）</span><span class="pts" style="color:#fbbf24">70点</span></div>
-              <div class="score-row"><span class="cond">第2種農地（要協議）</span><span class="pts" style="color:#fbbf24">45点</span></div>
-              <div class="score-row"><span class="cond">第1種農地（転用不可）</span><span class="pts" style="color:#f87171">10点</span></div>
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">洪水リスクスコア（国土交通省 不動産情報ライブラリ）</div>
-              <div class="score-row"><span class="cond">浸水リスクなし</span><span class="pts" style="color:#4ade80">100点</span></div>
-              <div class="score-row"><span class="cond">浸水想定あり（低・0.5m未満）</span><span class="pts" style="color:#fbbf24">70点</span></div>
-              <div class="score-row"><span class="cond">浸水想定あり（中・高）</span><span class="pts" style="color:#f87171">30点</span></div>
-              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">地震・地盤リスク（J-SHIS）※総合スコアには未反映・個別タブで表示</div>
-              <div class="score-row"><span class="cond">ARV ≤ 1.5（岩盤・硬質地盤）</span><span class="pts" style="color:#4ade80">92点</span></div>
-              <div class="score-row"><span class="cond">ARV ≤ 2.5（台地・段丘）</span><span class="pts" style="color:#4ade80">78点</span></div>
-              <div class="score-row"><span class="cond">ARV ≤ 3.5（沖積地盤）</span><span class="pts" style="color:#fbbf24">58点</span></div>
-              <div class="score-row"><span class="cond">ARV ≤ 5.0（液状化リスクあり）</span><span class="pts" style="color:#f87171">38点</span></div>
-              <div class="score-row"><span class="cond">ARV > 5.0（埋立地・後背湿地）</span><span class="pts" style="color:#f87171">18点</span></div>
-            </div>
-          </details>
-
-          <div style="font-size:10px;color:#475569;margin-top:10px;line-height:1.7">
-            ※ 各スコアは0〜100点。総合スコア = 各カテゴリスコア × 重み ÷ 重み合計。<br>
-            ※ 重みは⚙️重みづけパネルでリアルタイムに変更できます（デフォルト: 立地30%・収益40%・需要15%・規制15%）。
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 更新履歴パネル -->
-    <div id="changelogPanel" class="changelog-wrap" onclick="if(event.target===this)closeChangelogModal()">
-      <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:680px;max-width:96vw;max-height:88vh;overflow-y:auto;padding:28px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div>
-            <div style="font-size:18px;font-weight:700;color:#e2e8f0">📋 更新履歴</div>
-            <div style="font-size:11px;color:#64748b;margin-top:3px">機能追加・改善・修正の記録</div>
-          </div>
-          <button onclick="closeChangelogModal()" style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
-        </div>
-        <div id="changelogContent"></div>
-      </div>
-    </div>
-
-    <!-- フローティングツールチップ -->
-    <div id="tipFloating"></div>
-
-    <!-- エクスポートモーダル -->
-    <div class="export-modal-bg" id="exportModalBg" onclick="if(event.target===this)closeExportModal()">
-      <div class="export-modal">
-        <h2>📤 案件化エクスポート</h2>
-        <div class="subtitle" id="exportSubtitle"></div>
-        <div class="export-preview" id="exportPreview"></div>
-        <div class="export-grid">
-          <button class="export-btn" onclick="doExport('csv')">
-            <span class="icon">📊</span>
-            <div><div class="label">汎用 CSV</div><div class="desc">Excel・どのツールでも開ける</div></div>
-          </button>
-          <button class="export-btn" onclick="doExport('notion')">
-            <span class="icon">📝</span>
-            <div><div class="label">Notion</div><div class="desc">CSVインポート対応形式</div></div>
-          </button>
-          <button class="export-btn" onclick="doExport('airtable')">
-            <span class="icon">🗃️</span>
-            <div><div class="label">Airtable</div><div class="desc">CSVインポート対応形式</div></div>
-          </button>
-          <button class="export-btn" onclick="doExport('hubspot')">
-            <span class="icon">🟠</span>
-            <div><div class="label">HubSpot</div><div class="desc">取引（Deal）インポート形式</div></div>
-          </button>
-          <button class="export-btn" onclick="doExport('kintone')">
-            <span class="icon">🔵</span>
-            <div><div class="label">kintone</div><div class="desc">CSVインポート対応形式</div></div>
-          </button>
-          <button class="export-btn" onclick="doExport('salesforce')">
-            <span class="icon">☁️</span>
-            <div><div class="label">Salesforce</div><div class="desc">商談（Opportunity）形式</div></div>
-          </button>
-          <button class="export-btn" onclick="doExport('gsheet')">
-            <span class="icon">🟢</span>
-            <div><div class="label">Google スプレッドシート</div><div class="desc">CSV（シートに貼り付け）</div></div>
-          </button>
-          <button class="export-btn" onclick="doExport('json')">
-            <span class="icon">🔧</span>
-            <div><div class="label">JSON</div><div class="desc">API連携・開発者向け</div></div>
-          </button>
-        </div>
-        <button class="action-btn btn-secondary" onclick="closeExportModal()">閉じる</button>
-      </div>
-    </div>
-
-    <div class="loading-overlay" id="loadingOverlay">
-      <div style="text-align:center">
-        <div class="spinner"></div>
-        <div style="margin-top:12px;font-size:13px;color:#64748b">地図を読み込み中...</div>
-      </div>
-    </div>
   </div>
 
   <!-- 右パネル：詳細 -->
@@ -1126,6 +830,303 @@
     <div class="detail-body" id="detailBody"></div>
   </div>
 
+</div>
+
+<!-- 住所で評価モーダル -->
+<div id="evalModal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.75);z-index:400;align-items:flex-start;justify-content:center;backdrop-filter:blur(4px);padding-top:60px"
+  onclick="if(event.target===this)closeEvalModal()">
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:600px;max-width:96vw;max-height:85vh;overflow-y:auto;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div>
+        <div style="font-size:17px;font-weight:700;color:#e2e8f0">🔍 住所でBESSポテンシャルを評価</div>
+        <div style="font-size:12px;color:#64748b;margin-top:3px">住所を入力するとその土地のBESS適性を自動診断します</div>
+      </div>
+      <button onclick="closeEvalModal()" style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="evalAddress" type="text" placeholder="例：福島県郡山市田村町字守山1番地"
+        style="flex:1;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px 12px;color:#e2e8f0;font-size:13px;outline:none"
+        onkeydown="if(event.key==='Enter')runEval()">
+      <button onclick="runEval()"
+        style="background:#0ea5e9;border:none;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+        評価する
+      </button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">
+      <label style="font-size:12px;color:#94a3b8;white-space:nowrap">土地面積（概算）</label>
+      <input id="evalArea" type="number" value="5000" min="100" step="100"
+        style="width:120px;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px 10px;color:#e2e8f0;font-size:12px;outline:none">
+      <span style="font-size:12px;color:#64748b">㎡</span>
+      <span style="font-size:11px;color:#475569;margin-left:8px">※未入力でも評価できます</span>
+    </div>
+
+    <div id="evalResult"></div>
+  </div>
+</div>
+
+<!-- 重みづけパネル -->
+<div class="weight-panel" id="weightPanel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;color:#e2e8f0">⚙️ スコア重みづけ</div>
+    <button onclick="toggleWeightPanel()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:16px">✕</button>
+  </div>
+  <div class="weight-row"><label>立地スコア <span id="wLocVal">30</span>%</label>
+    <input type="range" id="wLoc" min="0" max="100" step="5" value="30" style="width:100%;accent-color:#38bdf8" oninput="updateWeights()">
+  </div>
+  <div class="weight-row"><label>収益スコア <span id="wRevVal">40</span>%</label>
+    <input type="range" id="wRev" min="0" max="100" step="5" value="40" style="width:100%;accent-color:#4ade80" oninput="updateWeights()">
+  </div>
+  <div class="weight-row"><label>需要スコア <span id="wDemVal">15</span>%</label>
+    <input type="range" id="wDem" min="0" max="100" step="5" value="15" style="width:100%;accent-color:#fbbf24" oninput="updateWeights()">
+  </div>
+  <div class="weight-row"><label>リスクスコア <span id="wRiskVal">15</span>%</label>
+    <input type="range" id="wRisk" min="0" max="100" step="5" value="15" style="width:100%;accent-color:#f87171" oninput="updateWeights()">
+  </div>
+  <div class="weight-total" id="weightTotal" style="color:#4ade80">合計: 100%</div>
+  <div class="preset-btns">
+    <button class="preset-btn" onclick="applyPreset('balance')">⚖️ バランス型</button>
+    <button class="preset-btn" onclick="applyPreset('revenue')">💰 収益重視</button>
+    <button class="preset-btn" onclick="applyPreset('risk')">🛡️ リスク重視</button>
+    <button class="preset-btn" onclick="applyPreset('demand')">🏭 需要重視</button>
+  </div>
+</div>
+
+<!-- 分析ロジック・データ出典モーダル -->
+<div id="logicModal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.75);z-index:400;align-items:center;justify-content:center;backdrop-filter:blur(4px)"
+  onclick="if(event.target===this)closeLogicModal()">
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:780px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:28px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:#e2e8f0">📊 分析ロジック・データ出典</div>
+        <div style="font-size:12px;color:#64748b;margin-top:4px">各スコアの算出根拠と使用データソースの一覧</div>
+      </div>
+      <button onclick="closeLogicModal()"
+        style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+
+    <!-- タブ切り替え -->
+    <div style="display:flex;border-bottom:1px solid #334155;margin-bottom:16px;gap:2px">
+      <button id="logicTab-data" onclick="switchLogicTab('data')"
+        style="padding:8px 16px;background:none;border:none;border-bottom:2px solid #38bdf8;color:#38bdf8;font-size:12px;font-weight:600;cursor:pointer">
+        📊 データソース
+      </button>
+      <button id="logicTab-cal" onclick="switchLogicTab('cal')"
+        style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;font-size:12px;font-weight:600;cursor:pointer">
+        📅 制度カレンダー
+      </button>
+    </div>
+
+    <!-- データソースタブ -->
+    <div id="logicContent-data">
+    <!-- スコア計算の全体像 -->
+    <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:20px;font-size:12px;color:#94a3b8;line-height:1.8">
+      <span style="color:#38bdf8;font-weight:600">総合スコアの構成：</span>
+      系統連系適合性（変電所距離）＋ 法規制クリア度（農地・用途地域）＋ ハザード安全性（洪水）＋ 立地条件（面積）<br>
+      収益性は <span style="color:#4ade80">収益シミュレーター</span> で別途試算。各指標は独立したデータソースから取得。
+    </div>
+
+    <!-- データソース一覧テーブル -->
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:#0f172a;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.05em">
+          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">データソース</th>
+          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">提供機関</th>
+          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">取得指標</th>
+          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">スコアへの影響</th>
+          <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #334155">更新頻度・信頼度</th>
+        </tr>
+      </thead>
+      <tbody id="logicTableBody"></tbody>
+    </table>
+
+    <div style="margin-top:16px;font-size:11px;color:#475569;line-height:1.7">
+      ※ 収益シミュレーターの容量市場価格はOCCTOの公表結果を使用。2030年度以降は見通し値（参考）。<br>
+      ※ J-SHIS地震ハザードは候補地クリック時にリアルタイム取得。その他は定期的にデータを更新。<br>
+      ※ 農地データ（WAGRI）は申請中。取得次第、実データに切り替え予定。
+    </div>
+
+    <!-- スコア計算基準 -->
+    <div style="margin-top:24px;border-top:1px solid #334155;padding-top:20px">
+      <div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px">📊 スコア計算基準</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:14px">各カテゴリのスコアがどのように算出されるかを示します。重みは⚙️重みづけパネルで変更可能です。</div>
+
+      <!-- アコーディオン共通スタイル -->
+      <style>
+        .score-accordion { border:1px solid #334155; border-radius:8px; margin-bottom:8px; overflow:hidden; }
+        .score-accordion summary { padding:12px 16px; cursor:pointer; font-size:13px; font-weight:600; color:#e2e8f0; background:#0f172a; display:flex; justify-content:space-between; align-items:center; list-style:none; }
+        .score-accordion summary::-webkit-details-marker { display:none; }
+        .score-accordion[open] summary { border-bottom:1px solid #334155; }
+        .score-accordion .acc-body { padding:12px 16px; background:#0f172a22; font-size:11px; }
+        .score-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #1e293b; }
+        .score-row:last-child { border-bottom:none; }
+        .score-row .cond { color:#94a3b8; flex:1; }
+        .score-row .pts  { font-weight:700; min-width:60px; text-align:right; }
+        .score-sub { font-size:10px; color:#475569; margin:6px 0 8px; line-height:1.6; }
+        .score-weight { font-size:10px; color:#38bdf8; margin-bottom:8px; }
+      </style>
+
+      <!-- 立地スコア -->
+      <details class="score-accordion">
+        <summary>📍 立地スコア <span style="font-size:11px;color:#64748b">デフォルト重み 30%</span></summary>
+        <div class="acc-body">
+          <div class="score-weight">計算式: 系統連系適合性 × 60% ＋ 立地条件（面積） × 40%</div>
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">系統連系適合性（変電所距離）</div>
+          <div class="score-sub">スコア = max(0, 100 − 距離(m) ÷ 50)　※連続値</div>
+          <div class="score-row"><span class="cond">変電所 300m 未満</span><span class="pts" style="color:#4ade80">94点〜</span></div>
+          <div class="score-row"><span class="cond">変電所 700m 未満</span><span class="pts" style="color:#4ade80">86点〜</span></div>
+          <div class="score-row"><span class="cond">変電所 1,500m 未満</span><span class="pts" style="color:#fbbf24">70点〜</span></div>
+          <div class="score-row"><span class="cond">変電所 3,000m 未満</span><span class="pts" style="color:#fbbf24">40点〜</span></div>
+          <div class="score-row"><span class="cond">変電所 5,000m 以上</span><span class="pts" style="color:#f87171">0点</span></div>
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">立地条件（面積）</div>
+          <div class="score-sub">スコア = min(100, 面積㎡ ÷ 100)　※連続値</div>
+          <div class="score-row"><span class="cond">10,000㎡ 以上</span><span class="pts" style="color:#4ade80">100点</span></div>
+          <div class="score-row"><span class="cond">5,000㎡</span><span class="pts" style="color:#4ade80">50点</span></div>
+          <div class="score-row"><span class="cond">1,000㎡</span><span class="pts" style="color:#fbbf24">10点</span></div>
+        </div>
+      </details>
+
+      <!-- 収益スコア -->
+      <details class="score-accordion">
+        <summary>💰 収益スコア <span style="font-size:11px;color:#64748b">デフォルト重み 40%</span></summary>
+        <div class="acc-body">
+          <div class="score-weight">計算式: JEPX×35% ＋ 出力制御×25% ＋ FIT集積×20% ＋ 停電バックアップ×20%</div>
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">JEPX収益性スコア（エリア別）</div>
+          <div class="score-row"><span class="cond">九州エリア</span><span class="pts" style="color:#4ade80">88点</span></div>
+          <div class="score-row"><span class="cond">関西エリア</span><span class="pts" style="color:#4ade80">74点</span></div>
+          <div class="score-row"><span class="cond">四国エリア</span><span class="pts" style="color:#4ade80">68点</span></div>
+          <div class="score-row"><span class="cond">東京エリア</span><span class="pts" style="color:#fbbf24">67点</span></div>
+          <div class="score-row"><span class="cond">中部エリア</span><span class="pts" style="color:#fbbf24">62点</span></div>
+          <div class="score-row"><span class="cond">東北エリア</span><span class="pts" style="color:#fbbf24">58点</span></div>
+          <div class="score-row"><span class="cond">北海道エリア</span><span class="pts" style="color:#fbbf24">48点</span></div>
+          <div class="score-row"><span class="cond">北陸エリア</span><span class="pts" style="color:#f87171">44点</span></div>
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">出力制御ポテンシャルスコア（エリア別）</div>
+          <div class="score-row"><span class="cond">九州エリア</span><span class="pts" style="color:#4ade80">100点</span></div>
+          <div class="score-row"><span class="cond">北海道エリア</span><span class="pts" style="color:#4ade80">88点</span></div>
+          <div class="score-row"><span class="cond">東北エリア</span><span class="pts" style="color:#4ade80">68点</span></div>
+          <div class="score-row"><span class="cond">四国エリア</span><span class="pts" style="color:#fbbf24">53点</span></div>
+          <div class="score-row"><span class="cond">中国エリア</span><span class="pts" style="color:#fbbf24">42点</span></div>
+          <div class="score-row"><span class="cond">北陸エリア</span><span class="pts" style="color:#fbbf24">63点</span></div>
+          <div class="score-row"><span class="cond">東京・関西・中部エリア</span><span class="pts" style="color:#f87171">20〜33点</span></div>
+        </div>
+      </details>
+
+      <!-- 需要スコア -->
+      <details class="score-accordion">
+        <summary>🏭 需要スコア <span style="font-size:11px;color:#64748b">デフォルト重み 15%</span></summary>
+        <div class="acc-body">
+          <div class="score-weight">計算式: 太陽光ポテンシャル×40% ＋ EV・V2G需要×60%</div>
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">太陽光スコア（都道府県別・NEDO/JMA実績）</div>
+          <div class="score-row"><span class="cond">沖縄県（5.1 kWh/m²/日）</span><span class="pts" style="color:#4ade80">100点</span></div>
+          <div class="score-row"><span class="cond">宮崎・鹿児島県（4.7〜4.8）</span><span class="pts" style="color:#4ade80">76〜82点</span></div>
+          <div class="score-row"><span class="cond">九州・東海・近畿（4.2〜4.5）</span><span class="pts" style="color:#fbbf24">47〜65点</span></div>
+          <div class="score-row"><span class="cond">東北・北陸（3.4〜3.8）</span><span class="pts" style="color:#f87171">0〜24点</span></div>
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">EV・V2G需要スコア（都道府県別）</div>
+          <div class="score-row"><span class="cond">東京都（普及率3.5%・8.5万台）</span><span class="pts" style="color:#4ade80">43点</span></div>
+          <div class="score-row"><span class="cond">愛知・神奈川県（2.8〜3.0%）</span><span class="pts" style="color:#fbbf24">34〜37点</span></div>
+          <div class="score-row"><span class="cond">主要都市圏（2〜2.5%）</span><span class="pts" style="color:#fbbf24">25〜31点</span></div>
+          <div class="score-row"><span class="cond">地方（1〜1.5%）</span><span class="pts" style="color:#f87171">13〜18点</span></div>
+        </div>
+      </details>
+
+      <!-- 規制リスクスコア -->
+      <details class="score-accordion">
+        <summary>⚖️ 規制リスクスコア <span style="font-size:11px;color:#64748b">デフォルト重み 15%</span></summary>
+        <div class="acc-body">
+          <div class="score-weight">計算式: 農地規制 × 50% ＋ 洪水リスク × 50%（J-SHIS地盤データは個別表示のみ）</div>
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:4px">農地規制スコア</div>
+          <div class="score-row"><span class="cond">農地なし（転用不要）</span><span class="pts" style="color:#4ade80">95点</span></div>
+          <div class="score-row"><span class="cond">第3種農地（転用可）</span><span class="pts" style="color:#fbbf24">70点</span></div>
+          <div class="score-row"><span class="cond">第2種農地（要協議）</span><span class="pts" style="color:#fbbf24">45点</span></div>
+          <div class="score-row"><span class="cond">第1種農地（転用不可）</span><span class="pts" style="color:#f87171">10点</span></div>
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">洪水リスクスコア（国土交通省 不動産情報ライブラリ）</div>
+          <div class="score-row"><span class="cond">浸水リスクなし</span><span class="pts" style="color:#4ade80">100点</span></div>
+          <div class="score-row"><span class="cond">浸水想定あり（低・0.5m未満）</span><span class="pts" style="color:#fbbf24">70点</span></div>
+          <div class="score-row"><span class="cond">浸水想定あり（中・高）</span><span class="pts" style="color:#f87171">30点</span></div>
+          <div style="font-size:11px;font-weight:600;color:#94a3b8;margin:10px 0 4px">地震・地盤リスク（J-SHIS）※総合スコアには未反映・個別タブで表示</div>
+          <div class="score-row"><span class="cond">ARV ≤ 1.5（岩盤・硬質地盤）</span><span class="pts" style="color:#4ade80">92点</span></div>
+          <div class="score-row"><span class="cond">ARV ≤ 2.5（台地・段丘）</span><span class="pts" style="color:#4ade80">78点</span></div>
+          <div class="score-row"><span class="cond">ARV ≤ 3.5（沖積地盤）</span><span class="pts" style="color:#fbbf24">58点</span></div>
+          <div class="score-row"><span class="cond">ARV ≤ 5.0（液状化リスクあり）</span><span class="pts" style="color:#f87171">38点</span></div>
+          <div class="score-row"><span class="cond">ARV > 5.0（埋立地・後背湿地）</span><span class="pts" style="color:#f87171">18点</span></div>
+        </div>
+      </details>
+
+      <div style="font-size:10px;color:#475569;margin-top:10px;line-height:1.7">
+        ※ 各スコアは0〜100点。総合スコア = 各カテゴリスコア × 重み ÷ 重み合計。<br>
+        ※ 重みは⚙️重みづけパネルでリアルタイムに変更できます（デフォルト: 立地30%・収益40%・需要15%・規制15%）。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 更新履歴パネル -->
+<div id="changelogPanel" class="changelog-wrap" onclick="if(event.target===this)closeChangelogModal()">
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:680px;max-width:96vw;max-height:88vh;overflow-y:auto;padding:28px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:#e2e8f0">📋 更新履歴</div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px">機能追加・改善・修正の記録</div>
+      </div>
+      <button onclick="closeChangelogModal()" style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div id="changelogContent"></div>
+  </div>
+</div>
+
+<!-- フローティングツールチップ -->
+<div id="tipFloating"></div>
+
+<!-- エクスポートモーダル -->
+<div class="export-modal-bg" id="exportModalBg" onclick="if(event.target===this)closeExportModal()">
+  <div class="export-modal">
+    <h2>📤 案件化エクスポート</h2>
+    <div class="subtitle" id="exportSubtitle"></div>
+    <div class="export-preview" id="exportPreview"></div>
+    <div class="export-grid">
+      <button class="export-btn" onclick="doExport('csv')">
+        <span class="icon">📊</span>
+        <div><div class="label">汎用 CSV</div><div class="desc">Excel・どのツールでも開ける</div></div>
+      </button>
+      <button class="export-btn" onclick="doExport('notion')">
+        <span class="icon">📝</span>
+        <div><div class="label">Notion</div><div class="desc">CSVインポート対応形式</div></div>
+      </button>
+      <button class="export-btn" onclick="doExport('airtable')">
+        <span class="icon">🗃️</span>
+        <div><div class="label">Airtable</div><div class="desc">CSVインポート対応形式</div></div>
+      </button>
+      <button class="export-btn" onclick="doExport('hubspot')">
+        <span class="icon">🟠</span>
+        <div><div class="label">HubSpot</div><div class="desc">取引（Deal）インポート形式</div></div>
+      </button>
+      <button class="export-btn" onclick="doExport('kintone')">
+        <span class="icon">🔵</span>
+        <div><div class="label">kintone</div><div class="desc">CSVインポート対応形式</div></div>
+      </button>
+      <button class="export-btn" onclick="doExport('salesforce')">
+        <span class="icon">☁️</span>
+        <div><div class="label">Salesforce</div><div class="desc">商談（Opportunity）形式</div></div>
+      </button>
+      <button class="export-btn" onclick="doExport('gsheet')">
+        <span class="icon">🟢</span>
+        <div><div class="label">Google スプレッドシート</div><div class="desc">CSV（シートに貼り付け）</div></div>
+      </button>
+      <button class="export-btn" onclick="doExport('json')">
+        <span class="icon">🔧</span>
+        <div><div class="label">JSON</div><div class="desc">API連携・開発者向け</div></div>
+      </button>
+    </div>
+    <button class="action-btn btn-secondary" onclick="closeExportModal()">閉じる</button>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div style="text-align:center">
+    <div class="spinner"></div>
+    <div style="margin-top:12px;font-size:13px;color:#64748b">地図を読み込み中...</div>
+  </div>
 </div>
 
 <script>
