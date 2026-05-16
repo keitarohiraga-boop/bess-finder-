@@ -2796,6 +2796,23 @@ function showEvalResult(d, hazard, title, area_m2) {
  */
 const CHANGELOG = [
   {
+    version: "1.7.0", date: "2026-05-16",
+    entries: [
+      { type: "✨", name: "Slack通知連携",
+        what: "案件タブの「Slackに送信」ボタンで承認依頼を#bess-site-finderチャンネルに直接投稿できる（Block Kit形式）",
+        why: "コピペ作業をなくし、承認フローをアプリ内で完結させるため" },
+      { type: "✨", name: "Claude Agent基盤（設計完了）",
+        what: "自然言語でタスクを指示するとClaude APIが候補地精査・報告書生成・案件更新を自律実行する機能の設計が完了",
+        why: "情報把握と意思決定のスピードを上げるため" },
+      { type: "🔧", name: "バックエンドバグ修正",
+        what: "reinfolib.pyのimport math欠落・evaluate.pyのEVデータクエリ漏れを修正",
+        why: "ハザードAPI呼び出し時のNameError・EV普及率スコアが常にデフォルト値になる問題を解消" },
+      { type: "🔧", name: "更新履歴モーダルの表示修正",
+        what: "モーダルが表示されない不具合を修正（MapLibreのCSS transform干渉が原因）",
+        why: "安定した表示のため動的生成方式に変更" },
+    ]
+  },
+  {
     version: "1.6.0", date: "2026-05-13",
     entries: [
       { type: "✨", name: "案件管理機能",
