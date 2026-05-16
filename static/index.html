@@ -4003,19 +4003,7 @@ function calcSim(siteId) {
   const power_kw = power_mw * 1000;
 
   // 容量に基づく必要土地面積（1MWh=80m²、バッファ20%）で土地コストを自動更新
-  if (_landPricePerM2) {
-    const requiredArea = Math.round(cap_mwh * 80 * 1.2); // m²
-    const buyMan = Math.round(_landPricePerM2 * requiredArea / 10000);
-    const priceSlider = document.getElementById('landPrice');
-    const priceNum    = document.getElementById('landPriceNum');
-    if (priceSlider) {
-      priceSlider.max   = Math.max(buyMan * 3, 3000);
-      priceSlider.value = buyMan;
-    }
-    if (priceNum) priceNum.value = buyMan;
-    // リース欄も連動更新
-    updateLeaseCalcFromPrice();
-  }
+  // 土地価格はユーザー入力値をそのまま使用（初期値はloadLandPrice/resetLandPriceで設定済み）
   const duration_h = cap_mwh / power_mw;  // 放電継続時間（時間）
 
   // ── 容量市場参加要件チェック ──
