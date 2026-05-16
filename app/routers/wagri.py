@@ -220,7 +220,16 @@ def update_all_farmclass(db: Session = Depends(get_db)):
 
     for site in sites:
         try:
-            features = _search_farmland(site.lat, site.lng)
+            # 工業・商業・住居系用途地域は農地になりえないのでスキップ
+            if site.landuse in ("industrial", "quasi-industrial", "commercial", "residential"):
+                results.append({
+                    "site_id": site.id, "name": site.name,
+                    "before": site.farm_class, "after": site.farm_class,
+                    "skipped": "非農地用途地域のためスキップ",
+                })
+                continue
+
+            features = _search_farmland(site.lat, site.lng, distance_m=500)
             farm_class = _determine_farm_class(features)
             old_class = site.farm_class
             site.farm_class = farm_class
