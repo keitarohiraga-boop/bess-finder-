@@ -4095,6 +4095,22 @@ function renderSimulator(site) {
         <span style="font-size:10px">▶</span>
       </summary>
       <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+        <!-- 長期脱炭素電源オークション -->
+        <div style="border-bottom:1px solid #334155;padding-bottom:10px;margin-bottom:2px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input type="checkbox" id="advLongdecOn" onchange="if(_currentSite)calcSim(_currentSite.id)"
+              style="width:16px;height:16px;accent-color:#4ade80;cursor:pointer">
+            <label style="font-size:12px;color:#4ade80;font-weight:600;cursor:pointer" onclick="document.getElementById('advLongdecOn').click()">
+              長期脱炭素電源オークション採択想定
+            </label>
+          </div>
+          <div style="font-size:10px;color:#475569;line-height:1.6">
+            採択時：<strong style="color:#4ade80">6.8万円/kW/年 × 20年固定</strong>（容量市場と排他）<br>
+            採択率：約18〜24%　|　必要条件：1MW以上・3時間以上放電<br>
+            ⚠️ 3時間未満（現設定：<span id="longdecDurationLabel">-</span>h）は参加不可
+          </div>
+        </div>
+
         <!-- 補助金 -->
         <div style="border-bottom:1px solid #334155;padding-bottom:10px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -4168,6 +4184,9 @@ function calcSim(siteId, skipLandUpdate = false) {
   document.getElementById("simPowerLabel").textContent = `${power_mw} MW`;
   document.getElementById("simUnitLabel").textContent  = `${unit_man} 万円/kWh`;
   document.getElementById("simYearLabel").textContent  = `${year}年度`;
+  const durationH = power_mw > 0 ? (cap_mwh / power_mw).toFixed(1) : "－";
+  const lblEl = document.getElementById("longdecDurationLabel");
+  if (lblEl) lblEl.textContent = durationH;
 
   const cap_kwh  = cap_mwh * 1000;
   const power_kw = power_mw * 1000;
@@ -4207,9 +4226,11 @@ function calcSim(siteId, skipLandUpdate = false) {
   const rev_jepx    = spread * cap_kwh * cycles * eff;
   const rev_cap     = capMktEligible ? power_kw * capPrice : 0;
   const rev_reg     = power_kw * 5000;   // 需給調整市場（GF/LFC）：市場実績 28〜39円/ΔkWh → 約5,000円/kW/年
-  const longdec_price = 16747;
-  const rev_longdec = capMktEligible ? power_kw * longdec_price : 0;
-  const rev_total = rev_jepx + rev_cap + rev_reg;
+  const longdec_price = 68000;  // 長期脱炭素電源オークション 第1回加重平均（円/kW/年）
+  const longdecOn = document.getElementById("advLongdecOn")?.checked && capMktEligible;
+  const rev_longdec = longdecOn ? power_kw * longdec_price : 0;
+  // 長期脱炭素採択時は容量市場と排他（rev_cap を置き換え）
+  const rev_total = rev_jepx + (longdecOn ? rev_longdec : rev_cap) + rev_reg;
 
   // ── 土地コスト ──
   const landCost = getLandCost(cap_kwh);
@@ -4341,14 +4362,18 @@ function calcSim(siteId, skipLandUpdate = false) {
         <div class="bar-val">${fmt(rev_reg)}</div>
       </div>
     </div>
-    <div style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px;margin-bottom:8px;font-size:11px">
-      <div style="color:#fbbf24;font-weight:600;margin-bottom:4px">📋 長期脱炭素電源オークション（参考）</div>
-      <div style="color:#94a3b8;margin-bottom:4px">容量市場の代替として選択可能。20年間固定収入。</div>
-      <div style="display:flex;justify-content:space-between">
-        <span style="color:#64748b">単価（第1回実績）: ${longdec_price.toLocaleString()}円/kW/年</span>
-        <span style="color:#4ade80;font-weight:600">${capMktEligible ? fmt(rev_longdec) + "/年" : "要件未達"}</span>
+    <div style="background:${longdecOn ? '#0d2318' : '#0f172a'};border:1px solid ${longdecOn ? '#4ade80' : '#334155'};border-radius:6px;padding:10px;margin-bottom:8px;font-size:11px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="color:${longdecOn ? '#4ade80' : '#fbbf24'};font-weight:600">📋 長期脱炭素電源オークション${longdecOn ? '（計算に反映中）' : '（参考・未反映）'}</div>
+        ${!capMktEligible ? `<span style="color:#f87171;font-size:10px">⚠️ 3時間未満で参加不可</span>` : ''}
       </div>
-      <div style="color:#475569;font-size:10px;margin-top:4px">※容量市場との重複参加不可。容量市場より単価が高い場合がある。</div>
+      <div style="display:flex;justify-content:space-between">
+        <span style="color:#64748b">単価（第1回実績・加重平均）: ${longdec_price.toLocaleString()}円/kW/年</span>
+        <span style="color:#4ade80;font-weight:600">${capMktEligible ? fmt(power_kw * longdec_price) + "/年" : "要件未達"}</span>
+      </div>
+      <div style="color:#475569;font-size:10px;margin-top:4px">
+        容量市場（${fmt(rev_cap)}/年）の代替。採択率18〜24%。「資金調達」欄でONに切り替え可。
+      </div>
     </div>
     <div class="sim-warning">
       ※ 概算値です。JEPX裁定は${area}エリアの実績スプレッド（${spread}円/kWh）を使用。
