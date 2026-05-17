@@ -1,12 +1,12 @@
 """
-メール送信ルーター（Resend）
+メール送信ルーター（Gmail SMTP）
 外部の不動産仲介業者への照会メール送信に使用。
 Claude Agent の tool としても呼び出せるよう汎用設計。
 """
-import json
 import os
-import urllib.request
-import urllib.error
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException
@@ -15,48 +15,35 @@ from typing import Optional
 
 router = APIRouter(prefix="/email", tags=["email"])
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-FROM_EMAIL     = os.getenv("SENDGRID_FROM_EMAIL", "")   # 送信元アドレスはそのまま流用
+GMAIL_USER     = os.getenv("GMAIL_USER", "")
+GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD", "")
 FROM_NAME      = os.getenv("SENDGRID_FROM_NAME", "BESS Site Finder")
 
 
-# ===== Resend API 呼び出し =====
+# ===== Gmail SMTP 送信 =====
 
 def _send_email(to_email: str, to_name: str, subject: str, body_text: str, body_html: str = "") -> dict:
-    if not RESEND_API_KEY:
-        raise HTTPException(status_code=503, detail="RESEND_API_KEY が未設定です")
-    if not FROM_EMAIL:
-        raise HTTPException(status_code=503, detail="SENDGRID_FROM_EMAIL（送信元アドレス）が未設定です")
+    if not GMAIL_USER or not GMAIL_PASSWORD:
+        raise HTTPException(status_code=503, detail="GMAIL_USER / GMAIL_PASSWORD が未設定です")
 
-    from_str = f"{FROM_NAME} <{FROM_EMAIL}>" if FROM_NAME else FROM_EMAIL
-    to_str   = f"{to_name} <{to_email}>" if to_name else to_email
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = f"{FROM_NAME} <{GMAIL_USER}>"
+    msg["To"]      = f"{to_name} <{to_email}>" if to_name else to_email
 
-    payload = {
-        "from":    from_str,
-        "to":      [to_str],
-        "subject": subject,
-        "text":    body_text,
-    }
+    msg.attach(MIMEText(body_text, "plain", "utf-8"))
     if body_html:
-        payload["html"] = body_html
+        msg.attach(MIMEText(body_html, "html", "utf-8"))
 
-    body = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {RESEND_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            result = json.loads(resp.read())
-            return {"ok": True, "id": result.get("id")}
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode()
-        raise HTTPException(status_code=502, detail=f"Resend エラー: {e.code} {error_body}")
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.login(GMAIL_USER, GMAIL_PASSWORD)
+            smtp.sendmail(GMAIL_USER, to_email, msg.as_bytes())
+        return {"ok": True}
+    except smtplib.SMTPAuthenticationError:
+        raise HTTPException(status_code=502, detail="Gmail認証失敗。アプリパスワードを確認してください")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"メール送信失敗: {str(e)}")
 
@@ -72,7 +59,7 @@ def _build_inquiry_email(payload: dict) -> tuple[str, str]:
     irr          = payload.get("irr", "")
     our_company  = payload.get("our_company", "Natural Born株式会社")
     contact_name = payload.get("contact_name", "担当者")
-    contact_email = payload.get("contact_email", FROM_EMAIL)
+    contact_email = payload.get("contact_email", GMAIL_USER)
     note         = payload.get("note", "")
     agent_name   = payload.get("agent_name", "不動産会社")
 
@@ -134,12 +121,12 @@ E-mail：{contact_email}</p>
 # ===== エンドポイント =====
 
 class SendEmailRequest(BaseModel):
-    to_email:    str
-    to_name:     str = ""
-    subject:     str
-    message_type: str = "inquiry"   # inquiry / custom
-    payload:     dict = {}
-    body_text:   Optional[str] = None   # message_type="custom" 時に直接指定
+    to_email:     str
+    to_name:      str = ""
+    subject:      str = ""
+    message_type: str = "inquiry"
+    payload:      dict = {}
+    body_text:    Optional[str] = None
 
 
 @router.post("/send", summary="メールを送信")
@@ -161,58 +148,14 @@ def send_email(body: SendEmailRequest):
 @router.get("/status", summary="メール送信設定の確認")
 def status():
     return {
-        "configured":  bool(RESEND_API_KEY and FROM_EMAIL),
-        "provider":    "Resend",
-        "from_email":  FROM_EMAIL or "未設定",
-        "from_name":   FROM_NAME,
+        "configured": bool(GMAIL_USER and GMAIL_PASSWORD),
+        "provider":   "Gmail SMTP",
+        "from_email": GMAIL_USER or "未設定",
     }
-
-
-@router.get("/verify-key", summary="APIキーの有効性を確認（送信なし）")
-def verify_key():
-    """Resend APIキーでドメイン一覧を取得してキーが有効か確認"""
-    if not RESEND_API_KEY:
-        raise HTTPException(status_code=503, detail="RESEND_API_KEY未設定")
-    req = urllib.request.Request(
-        "https://api.resend.com/domains",
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            result = json.loads(resp.read())
-            return {"ok": True, "domains": result.get("data", [])}
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode()
-        raise HTTPException(status_code=e.code, detail=f"Resend APIキーエラー: {e.code} {error_body}")
 
 
 @router.get("/test", summary="自分宛にテストメールを送信")
 def test_send():
-    """from_emailに自分宛でシンプルなテストメールを送る"""
-    if not RESEND_API_KEY or not FROM_EMAIL:
-        raise HTTPException(status_code=503, detail="設定不足")
-    # まずResend公式テストアドレスで送信（APIキーの有効性確認）
-    payload = {
-        "from":    "onboarding@resend.dev",
-        "to":      [FROM_EMAIL],
-        "subject": "BESS Site Finder APIキーテスト",
-        "text":    "このメールはResend APIキーのテストです。",
-    }
-    body = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {RESEND_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            result = json.loads(resp.read())
-            return {"ok": True, "id": result.get("id"), "from": FROM_EMAIL, "to": FROM_EMAIL}
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode()
-        raise HTTPException(status_code=502, detail=f"Resend エラー: {e.code} {error_body}")
+    if not GMAIL_USER or not GMAIL_PASSWORD:
+        raise HTTPException(status_code=503, detail="GMAIL_USER / GMAIL_PASSWORD が未設定です")
+    return _send_email(GMAIL_USER, "", "BESS Site Finder テストメール", "このメールはGmail SMTP設定のテストです。")
