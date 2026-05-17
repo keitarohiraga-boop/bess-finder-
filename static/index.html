@@ -4106,8 +4106,14 @@ function renderSimulator(site) {
           </div>
           <div style="font-size:10px;color:#475569;line-height:1.6">
             採択時：<strong style="color:#4ade80">6.8万円/kW/年 × 20年固定</strong>（容量市場と排他）<br>
-            採択率：約18〜24%　|　必要条件：1MW以上・3時間以上放電<br>
-            ⚠️ 3時間未満（現設定：<span id="longdecDurationLabel">-</span>h）は参加不可
+            必要条件：1MW以上・3時間以上放電　|　現設定：<span id="longdecDurationLabel">-</span>h
+          </div>
+          <div class="sim-input-row" style="margin-top:8px">
+            <label style="color:#94a3b8">採択率想定 <span id="advAdoptionRateLabel">20</span>%（期待値IRR計算用）</label>
+            <input type="range" id="advAdoptionRate" min="5" max="50" step="5" value="20"
+              style="width:100%;accent-color:#4ade80;cursor:pointer"
+              oninput="document.getElementById('advAdoptionRateLabel').textContent=this.value;if(_currentSite)calcSim(_currentSite.id)">
+            <div style="font-size:9px;color:#475569">実績：1次18%、2次24%。競争激化で低下傾向。</div>
           </div>
         </div>
 
@@ -4271,10 +4277,24 @@ function calcSim(siteId, skipLandUpdate = false) {
     }
     return flows;
   }
-  const eFlows = (subsidyOn || loanOn)
-    ? calcEquityFlows(equityAmount, net_rev, annualRepayment, degRate, loanYears)
-    : null;
-  const equityIRR = eFlows ? calcIRR(eFlows) : null;
+  // ベースケース（容量市場）の純収益
+  const net_rev_base = rev_jepx + (capMktEligible ? rev_cap : 0) + rev_reg - om_cost - annual_lease;
+  // 長期脱炭素採択時の純収益
+  const net_rev_ld   = rev_jepx + (capMktEligible ? power_kw * longdec_price : 0) + rev_reg - om_cost - annual_lease;
+
+  const adoptionRate = parseFloat(document.getElementById("advAdoptionRate")?.value || 20) / 100;
+
+  const calcEIRR = (nRev) => {
+    if (!subsidyOn && !loanOn) return null;
+    const flows = calcEquityFlows(equityAmount, nRev, annualRepayment, degRate, loanYears);
+    return calcIRR(flows);
+  };
+  const equityIRR_base  = calcEIRR(net_rev_base);
+  const equityIRR_ld    = capMktEligible ? calcEIRR(net_rev_ld) : null;
+  const equityIRR_exp   = (equityIRR_base !== null && equityIRR_ld !== null)
+    ? equityIRR_base * (1 - adoptionRate) + equityIRR_ld * adoptionRate
+    : equityIRR_base;
+  const equityIRR = longdecOn ? equityIRR_ld : equityIRR_base;
 
   const fmt = n => n >= 1e8
     ? `${(n/1e8).toFixed(1)}億円`
@@ -4311,11 +4331,29 @@ function calcSim(siteId, skipLandUpdate = false) {
           <div style="color:#e2e8f0;font-weight:700">${fmt(equityAmount)}</div>
         </div>
       </div>
-      ${annualRepayment > 0 ? `<div style="color:#475569;font-size:10px">年間返済：${fmt(annualRepayment)}/年 × ${loanYears}年</div>` : ''}
-      ${equityIRR !== null ? `
-      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #334155;display:flex;align-items:center;justify-content:space-between">
-        <div style="color:#94a3b8;font-size:11px">自己資本IRR（レバレッジ後）</div>
-        <div style="font-size:22px;font-weight:700;color:${equityIRR>=0.2?'#4ade80':equityIRR>=0.1?'#fbbf24':'#f87171'}">${(equityIRR*100).toFixed(1)}%</div>
+      ${annualRepayment > 0 ? `<div style="color:#475569;font-size:10px;margin-bottom:8px">年間返済：${fmt(annualRepayment)}/年 × ${loanYears}年</div>` : ''}
+      ${equityIRR_base !== null ? `
+      <div style="border-top:1px solid #334155;padding-top:10px;margin-top:4px">
+        <div style="font-size:10px;color:#64748b;margin-bottom:8px;text-align:center">自己資本IRR 比較（補助金・融資後）</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center">
+          <div style="background:#0f172a;border-radius:6px;padding:8px 4px;border:1px solid #334155">
+            <div style="font-size:9px;color:#64748b;margin-bottom:4px">ベース<br>（容量市場）</div>
+            <div style="font-size:18px;font-weight:700;color:${equityIRR_base>=0.2?'#4ade80':equityIRR_base>=0.1?'#fbbf24':'#f87171'}">${(equityIRR_base*100).toFixed(1)}%</div>
+          </div>
+          <div style="background:#0d2318;border-radius:6px;padding:8px 4px;border:1px solid ${capMktEligible?'#4ade80':'#475569'}">
+            <div style="font-size:9px;color:#64748b;margin-bottom:4px">採択時<br>（長期脱炭素）</div>
+            <div style="font-size:18px;font-weight:700;color:${!capMktEligible?'#475569':equityIRR_ld>=0.3?'#4ade80':'#fbbf24'}">
+              ${capMktEligible && equityIRR_ld ? (equityIRR_ld*100).toFixed(1)+'%' : '参加不可'}
+            </div>
+          </div>
+          <div style="background:#0f172a;border-radius:6px;padding:8px 4px;border:2px solid #f59e0b">
+            <div style="font-size:9px;color:#fbbf24;margin-bottom:4px">期待値<br>（採択率${Math.round(adoptionRate*100)}%加重）</div>
+            <div style="font-size:18px;font-weight:700;color:#fbbf24">${equityIRR_exp?(equityIRR_exp*100).toFixed(1)+'%':'－'}</div>
+          </div>
+        </div>
+        <div style="font-size:9px;color:#475569;margin-top:6px;text-align:center">
+          期待値 = ベース×${100-Math.round(adoptionRate*100)}% + 採択時×${Math.round(adoptionRate*100)}%
+        </div>
       </div>` : ''}
     </div>` : ''}
 
