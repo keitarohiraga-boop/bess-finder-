@@ -173,12 +173,12 @@ def test_send():
     """from_emailに自分宛でシンプルなテストメールを送る"""
     if not RESEND_API_KEY or not FROM_EMAIL:
         raise HTTPException(status_code=503, detail="設定不足")
-    # 名前なし・シンプルなペイロードでテスト
+    # まずResend公式テストアドレスで送信（APIキーの有効性確認）
     payload = {
-        "from":    FROM_EMAIL,
+        "from":    "onboarding@resend.dev",
         "to":      [FROM_EMAIL],
-        "subject": "BESS Site Finder テストメール",
-        "text":    "このメールはResend設定のテストです。",
+        "subject": "BESS Site Finder APIキーテスト",
+        "text":    "このメールはResend APIキーのテストです。",
     }
     body = json.dumps(payload).encode()
     req = urllib.request.Request(
