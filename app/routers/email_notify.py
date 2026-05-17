@@ -1,5 +1,5 @@
 """
-メール送信ルーター（SendGrid）
+メール送信ルーター（Resend）
 外部の不動産仲介業者への照会メール送信に使用。
 Claude Agent の tool としても呼び出せるよう汎用設計。
 """
@@ -15,46 +15,48 @@ from typing import Optional
 
 router = APIRouter(prefix="/email", tags=["email"])
 
-SENDGRID_API_KEY   = os.getenv("SENDGRID_API_KEY", "")
-FROM_EMAIL         = os.getenv("SENDGRID_FROM_EMAIL", "")
-FROM_NAME          = os.getenv("SENDGRID_FROM_NAME", "BESS Site Finder")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+FROM_EMAIL     = os.getenv("SENDGRID_FROM_EMAIL", "")   # 送信元アドレスはそのまま流用
+FROM_NAME      = os.getenv("SENDGRID_FROM_NAME", "BESS Site Finder")
 
 
-# ===== SendGrid API 呼び出し =====
+# ===== Resend API 呼び出し =====
 
 def _send_email(to_email: str, to_name: str, subject: str, body_text: str, body_html: str = "") -> dict:
-    if not SENDGRID_API_KEY:
-        raise HTTPException(status_code=503, detail="SENDGRID_API_KEY が未設定です")
+    if not RESEND_API_KEY:
+        raise HTTPException(status_code=503, detail="RESEND_API_KEY が未設定です")
     if not FROM_EMAIL:
-        raise HTTPException(status_code=503, detail="SENDGRID_FROM_EMAIL が未設定です")
+        raise HTTPException(status_code=503, detail="SENDGRID_FROM_EMAIL（送信元アドレス）が未設定です")
+
+    from_str = f"{FROM_NAME} <{FROM_EMAIL}>" if FROM_NAME else FROM_EMAIL
+    to_str   = f"{to_name} <{to_email}>" if to_name else to_email
 
     payload = {
-        "personalizations": [{"to": [{"email": to_email, "name": to_name}]}],
-        "from": {"email": FROM_EMAIL, "name": FROM_NAME},
+        "from":    from_str,
+        "to":      [to_str],
         "subject": subject,
-        "content": [
-            {"type": "text/plain", "value": body_text},
-        ],
+        "text":    body_text,
     }
     if body_html:
-        payload["content"].append({"type": "text/html", "value": body_html})
+        payload["html"] = body_html
 
     body = json.dumps(payload).encode()
     req = urllib.request.Request(
-        "https://api.sendgrid.com/v3/mail/send",
+        "https://api.resend.com/emails",
         data=body,
         headers={
-            "Authorization": f"Bearer {SENDGRID_API_KEY}",
+            "Authorization": f"Bearer {RESEND_API_KEY}",
             "Content-Type": "application/json",
         },
         method="POST",
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
-            return {"ok": True, "status": resp.status}
+            result = json.loads(resp.read())
+            return {"ok": True, "id": result.get("id")}
     except urllib.error.HTTPError as e:
         error_body = e.read().decode()
-        raise HTTPException(status_code=502, detail=f"SendGrid エラー: {e.code} {error_body}")
+        raise HTTPException(status_code=502, detail=f"Resend エラー: {e.code} {error_body}")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"メール送信失敗: {str(e)}")
 
@@ -159,7 +161,8 @@ def send_email(body: SendEmailRequest):
 @router.get("/status", summary="メール送信設定の確認")
 def status():
     return {
-        "configured":  bool(SENDGRID_API_KEY and FROM_EMAIL),
+        "configured":  bool(RESEND_API_KEY and FROM_EMAIL),
+        "provider":    "Resend",
         "from_email":  FROM_EMAIL or "未設定",
         "from_name":   FROM_NAME,
     }
