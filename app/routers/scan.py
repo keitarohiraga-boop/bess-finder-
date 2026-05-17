@@ -116,30 +116,10 @@ def _add_check_digit(code5: str) -> str:
     return code5 + str(check)
 
 
-def _wagri_by_city(city_code: str) -> list[dict]:
-    """WAGRIのSearchByCityCodeで農地ピン情報を取得"""
-    # 5桁コードの場合は6桁に変換
-    if len(city_code) == 5:
-        city_code = _add_check_digit(city_code)
-    token = _get_token()
-    url = f"https://api.wagri2.net/basic/farmland/AgriculturalLand/SearchByCityCode?CityCode={city_code}"
-    req = urllib.request.Request(
-        url,
-        headers={"X-Authorization": f"Bearer {token}"},
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read())
-        if isinstance(data, list):
-            return data
-        return data.get("value", data.get("features", []))
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return []
-        raise
-    except Exception:
-        return []
+def _wagri_by_distance(lat: float, lng: float, distance_m: int = 8000) -> list[dict]:
+    """WAGRIのSearchByDistanceで農地ピン情報を取得（既存の動作確認済みエンドポイント）"""
+    from app.routers.wagri import _search_farmland
+    return _search_farmland(lat, lng, distance_m)
 
 
 def _score_candidate(lat: float, lng: float, area: float, prefecture: str, db: Session) -> dict:
@@ -200,62 +180,103 @@ def _sse(event: str, data: dict) -> str:
     return f"data: {json.dumps({'event': event, **data}, ensure_ascii=False)}\n\n"
 
 
+# 都道府県バウンディングボックス（lat_min, lat_max, lng_min, lng_max）
+_PREF_BOUNDS: dict[str, tuple] = {
+    "北海道":(41.3,45.6,139.3,145.9),"青森県":(40.2,41.6,139.8,141.7),
+    "岩手県":(38.7,40.5,140.5,142.1),"宮城県":(37.7,39.0,140.2,141.7),
+    "秋田県":(38.9,40.5,139.5,140.8),"山形県":(37.7,39.1,139.6,140.7),
+    "福島県":(36.7,37.9,138.9,141.1),"茨城県":(35.7,36.8,139.7,140.9),
+    "栃木県":(36.2,37.2,139.3,140.3),"群馬県":(36.1,37.0,138.4,139.4),
+    "埼玉県":(35.7,36.3,138.7,139.9),"千葉県":(34.9,36.1,139.7,140.9),
+    "東京都":(35.5,35.9,138.9,139.9),"神奈川県":(35.1,35.7,138.9,139.8),
+    "新潟県":(36.8,38.6,137.7,139.6),"富山県":(36.4,36.9,136.7,137.7),
+    "石川県":(36.1,37.0,136.2,137.4),"福井県":(35.4,36.2,135.9,136.9),
+    "山梨県":(35.2,35.9,138.3,139.2),"長野県":(35.2,37.0,136.9,138.6),
+    "岐阜県":(35.1,36.4,136.2,137.7),"静岡県":(34.5,35.7,137.5,139.2),
+    "愛知県":(34.5,35.5,136.6,137.7),"三重県":(33.9,35.3,135.8,136.9),
+    "滋賀県":(34.7,35.6,135.8,136.5),"京都府":(34.7,35.8,135.0,136.0),
+    "大阪府":(34.3,35.1,135.0,135.8),"兵庫県":(34.1,35.7,134.3,135.5),
+    "奈良県":(34.1,34.8,135.5,136.3),"和歌山県":(33.4,34.3,135.0,136.1),
+    "鳥取県":(35.0,35.6,133.2,134.3),"島根県":(34.5,35.8,131.7,133.4),
+    "岡山県":(34.5,35.3,133.2,134.5),"広島県":(33.9,35.1,131.9,133.5),
+    "山口県":(33.7,34.8,130.8,132.2),"徳島県":(33.5,34.4,133.8,134.8),
+    "香川県":(34.0,34.5,133.4,134.4),"愛媛県":(32.8,34.0,132.0,133.7),
+    "高知県":(32.7,33.9,132.5,134.3),"福岡県":(33.0,34.2,129.9,131.4),
+    "佐賀県":(33.0,33.7,129.7,130.7),"長崎県":(32.5,34.4,128.6,130.5),
+    "熊本県":(32.1,33.5,130.0,131.5),"大分県":(32.7,33.9,130.8,132.1),
+    "宮崎県":(31.3,33.0,130.7,131.9),"鹿児島県":(30.0,32.5,129.3,131.4),
+    "沖縄県":(24.0,28.0,122.9,131.4),
+}
+
+KM_PER_LAT = 111.0
+def _make_grid(pref: str, grid_km: float = 15.0) -> list[tuple]:
+    """都道府県のバウンディングボックス内に格子点を生成"""
+    bounds = _PREF_BOUNDS.get(pref)
+    if not bounds:
+        return []
+    lat_min, lat_max, lng_min, lng_max = bounds
+    lat_step = grid_km / KM_PER_LAT
+    center_lat = (lat_min + lat_max) / 2
+    lng_step = grid_km / (KM_PER_LAT * math.cos(math.radians(center_lat)))
+    points = []
+    lat = lat_min
+    while lat <= lat_max:
+        lng = lng_min
+        while lng <= lng_max:
+            points.append((round(lat, 4), round(lng, 4)))
+            lng += lng_step
+        lat += lat_step
+    return points
+
+
 async def _run_scan(prefecture: str, min_score: int, max_register: int, db: Session) -> AsyncGenerator[str, None]:
-    pref_code = PREF_CODE_MAP.get(prefecture)
-    if not pref_code:
+    if prefecture not in _PREF_BOUNDS:
         yield _sse("error", {"message": f"都道府県名が不正: {prefecture}"})
         return
 
-    yield _sse("start", {"message": f"{prefecture}のスキャンを開始します"})
+    yield _sse("start", {"message": f"{prefecture}のスキャンを開始します（15km格子×SearchByDistance方式）"})
 
-    # 市区町村一覧を取得
-    cities = _get_city_codes(pref_code)
-    if not cities:
-        yield _sse("error", {"message": "市区町村コードの取得に失敗しました"})
-        return
+    grid = _make_grid(prefecture, grid_km=15.0)
+    radius_m = 9000  # 15km格子に対して9km半径でオーバーラップさせて網羅
+    yield _sse("progress", {"message": f"{len(grid)}格子点をスキャンします", "total": len(grid)})
 
-    yield _sse("progress", {"message": f"{len(cities)}市区町村を発見。農地データ取得を開始します", "total": len(cities)})
-
+    seen_coords = set()  # 重複除去用
     candidates = []
-    for i, city in enumerate(cities):
-        city_code = city.get("id", "")
-        city_name = city.get("name", "")
-        if not city_code:
-            continue
 
+    for i, (lat, lng) in enumerate(grid):
         yield _sse("progress", {
-            "message": f"[{i+1}/{len(cities)}] {city_name} をスキャン中...",
-            "current": i + 1, "total": len(cities)
+            "message": f"[{i+1}/{len(grid)}] ({lat:.3f}, {lng:.3f}) をスキャン中...",
+            "current": i + 1, "total": len(grid)
         })
 
         try:
-            features = _wagri_by_city(city_code)
+            features = _wagri_by_distance(lat, lng, radius_m)
         except Exception as e:
-            yield _sse("progress", {"message": f"{city_name}: スキップ ({str(e)[:30]})"})
+            yield _sse("progress", {"message": f"スキップ: {str(e)[:40]}"})
             continue
 
-        # 第3種農地のみ抽出
-        class3 = [
-            f for f in features
-            if _determine_farm_class([f]) == "class3-farm"
-            and f.get("Area", 0) >= 3000  # 3,000㎡以上
-        ]
-
-        for feat in class3:
-            lat = feat.get("Latitude")
-            lng = feat.get("Longitude")
-            area = feat.get("Area", 5000)
-            address = feat.get("Address", f"{prefecture}{city_name}")
-            if not lat or not lng:
+        # 第3種農地のみ抽出・重複除去
+        for feat in features:
+            if _determine_farm_class([feat]) != "class3-farm":
                 continue
-            scores = _score_candidate(lat, lng, area, prefecture, db)
+            if feat.get("Area", 0) < 3000:
+                continue
+            flat = round(feat.get("Latitude", 0), 4)
+            flng = round(feat.get("Longitude", 0), 4)
+            key = (flat, flng)
+            if key in seen_coords:
+                continue
+            seen_coords.add(key)
+            area = feat.get("Area", 5000)
+            address = feat.get("Address", f"{prefecture}")
+            scores = _score_candidate(flat, flng, area, prefecture, db)
             candidates.append({
-                "lat": lat, "lng": lng, "area": area,
+                "lat": flat, "lng": flng, "area": area,
                 "address": address, "prefecture": prefecture,
-                "city_name": city_name, "scores": scores,
+                "scores": scores,
             })
 
-        time.sleep(0.3)  # APIレート制限対策
+        time.sleep(0.5)
 
     yield _sse("progress", {"message": f"スキャン完了。{len(candidates)}件の第3種農地を発見。スコア上位を登録中..."})
 
