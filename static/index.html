@@ -4284,9 +4284,12 @@ function calcSim(siteId, skipLandUpdate = false) {
 
   const adoptionRate = parseFloat(document.getElementById("advAdoptionRate")?.value || 20) / 100;
 
+  // レバレッジなし時は全額自己資本・返済なしとして計算（常に値を返す）
   const calcEIRR = (nRev) => {
-    if (!subsidyOn && !loanOn) return null;
-    const flows = calcEquityFlows(equityAmount, nRev, annualRepayment, degRate, loanYears);
+    const eq = (subsidyOn || loanOn) ? equityAmount : capex;
+    const rep = (subsidyOn || loanOn) ? annualRepayment : 0;
+    if (eq <= 0) return null;
+    const flows = calcEquityFlows(eq, nRev, rep, degRate, loanYears);
     return calcIRR(flows);
   };
   const equityIRR_base  = calcEIRR(net_rev_base);
@@ -4295,6 +4298,7 @@ function calcSim(siteId, skipLandUpdate = false) {
     ? equityIRR_base * (1 - adoptionRate) + equityIRR_ld * adoptionRate
     : equityIRR_base;
   const equityIRR = longdecOn ? equityIRR_ld : equityIRR_base;
+  const showFinanceCard = longdecOn || subsidyOn || loanOn;
 
   const fmt = n => n >= 1e8
     ? `${(n/1e8).toFixed(1)}億円`
@@ -4314,9 +4318,10 @@ function calcSim(siteId, skipLandUpdate = false) {
       <span style="color:#94a3b8">${capLabel}${capConfirmed ? '　※この年度への新規入札はできません' : '　※実際の価格はオークション結果で決定'}</span>
     </div>`}
 
-    ${(subsidyOn || loanOn) ? `
+    ${showFinanceCard ? `
     <div style="background:#1a1500;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:11px">
-      <div style="color:#fbbf24;font-weight:600;margin-bottom:6px">💰 資金調達シミュレーション</div>
+      <div style="color:#fbbf24;font-weight:600;margin-bottom:6px">💰 IRRシミュレーション</div>
+      ${(subsidyOn || loanOn) ? `
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
         <div style="text-align:center">
           <div style="color:#64748b;font-size:10px">補助金</div>
@@ -4331,7 +4336,7 @@ function calcSim(siteId, skipLandUpdate = false) {
           <div style="color:#e2e8f0;font-weight:700">${fmt(equityAmount)}</div>
         </div>
       </div>
-      ${annualRepayment > 0 ? `<div style="color:#475569;font-size:10px;margin-bottom:8px">年間返済：${fmt(annualRepayment)}/年 × ${loanYears}年</div>` : ''}
+      ${annualRepayment > 0 ? `<div style="color:#475569;font-size:10px;margin-bottom:8px">年間返済：${fmt(annualRepayment)}/年 × ${loanYears}年</div>` : ''}` : ''}
       ${equityIRR_base !== null ? `
       <div style="border-top:1px solid #334155;padding-top:10px;margin-top:4px">
         <div style="font-size:10px;color:#64748b;margin-bottom:8px;text-align:center">自己資本IRR 比較（補助金・融資後）</div>
