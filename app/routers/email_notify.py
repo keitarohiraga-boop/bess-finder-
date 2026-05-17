@@ -166,3 +166,34 @@ def status():
         "from_email":  FROM_EMAIL or "未設定",
         "from_name":   FROM_NAME,
     }
+
+
+@router.get("/test", summary="自分宛にテストメールを送信")
+def test_send():
+    """from_emailに自分宛でシンプルなテストメールを送る"""
+    if not RESEND_API_KEY or not FROM_EMAIL:
+        raise HTTPException(status_code=503, detail="設定不足")
+    # 名前なし・シンプルなペイロードでテスト
+    payload = {
+        "from":    FROM_EMAIL,
+        "to":      [FROM_EMAIL],
+        "subject": "BESS Site Finder テストメール",
+        "text":    "このメールはResend設定のテストです。",
+    }
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read())
+            return {"ok": True, "id": result.get("id"), "from": FROM_EMAIL, "to": FROM_EMAIL}
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode()
+        raise HTTPException(status_code=502, detail=f"Resend エラー: {e.code} {error_body}")
