@@ -3520,12 +3520,17 @@ async function loadLandPrice(lat, lng, containerId) {
     const formatDist = m => m >= 1000 ? `${(m/1000).toFixed(1)}km` : `${m}m`;
     const confColor  = c => c === "高" ? "#4ade80" : c === "中" ? "#fbbf24" : "#f87171";
 
-    const sourcesHtml = sources.map(s => `
-      <div style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:11px">
-        <div style="font-size:10px;color:#64748b;margin-bottom:4px;font-weight:600">${s.source_name || "地価公示"}</div>
+    const recommendedName = d.recommended_source || sources[0]?.source_name;
+
+    const sourcesHtml = sources.map(s => {
+      const isRec = s.source_name === recommendedName;
+      return `
+      <div style="background:#0f172a;border:1px solid ${isRec?'#38bdf8':'#334155'};border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:11px;position:relative">
+        ${isRec ? `<span style="position:absolute;top:6px;right:8px;font-size:9px;background:#0ea5e9;color:#fff;padding:1px 6px;border-radius:3px">★ 推奨</span>` : ''}
+        <div style="font-size:10px;color:${isRec?'#38bdf8':'#64748b'};margin-bottom:4px;font-weight:600">${s.source_name || "地価公示"}</div>
         <div class="detail-row" style="padding:3px 0">
           <span class="key">参考地価</span>
-          <span class="val ok">${s.price_per_m2 ? Number(s.price_per_m2).toLocaleString()+'円/㎡' : '不明'}</span>
+          <span class="val ${isRec?'ok':''}">${s.price_per_m2 ? Number(s.price_per_m2).toLocaleString()+'円/㎡' : '不明'}</span>
         </div>
         <div class="detail-row" style="padding:3px 0">
           <span class="key">調査年・地目</span>
@@ -3540,22 +3545,25 @@ async function loadLandPrice(lat, lng, containerId) {
           <span class="val" style="color:${confColor(s.confidence)}">${s.confidence || '－'} — ${s.confidence_note || ''}</span>
         </div>
         <div style="font-size:10px;color:#475569;margin-top:2px">${s.address || ''}</div>
-      </div>`).join("");
+      </div>`;
+    }).join("");
 
-    const rangeHtml = summary.range_min !== summary.range_max && sources.length > 1
+    const recPrice = summary.recommended || sources[0]?.price_per_m2;
+    const rangeHtml = sources.length > 1
       ? `<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">
            価格帯: ${Number(summary.range_min).toLocaleString()}〜${Number(summary.range_max).toLocaleString()} 円/㎡
+           　<strong style="color:#38bdf8">推奨: ${Number(recPrice).toLocaleString()} 円/㎡</strong>（★${recommendedName}）
          </div>` : "";
 
     el.innerHTML = `
       ${rangeHtml}
       ${sourcesHtml}
-      <div style="font-size:10px;color:#475569;margin-top:4px">※対象地そのものの価格ではありません。シミュレーターの土地コストに反映済み。<br>出典: 国土交通省 不動産情報ライブラリ</div>
+      <div style="font-size:10px;color:#475569;margin-top:4px">※対象地そのものの価格ではありません。★推奨ソースをシミュレーターのデフォルト地価に反映。<br>出典: 国土交通省 不動産情報ライブラリ</div>
     `;
-    // シミュレーターのデフォルト土地コストを更新（sourcesの最初のエントリから取得）
-    const firstSource = sources[0];
-    if (firstSource?.price_per_m2 && _currentSite) {
-      _landPricePerM2 = firstSource.price_per_m2;
+    // 推奨ソースの価格をシミュレーターデフォルトに使用
+    const recommendedPrice = summary.recommended || sources[0]?.price_per_m2;
+    if (recommendedPrice && _currentSite) {
+      _landPricePerM2 = recommendedPrice;
       const area = _currentSite.area;
       const totalManyen = Math.round(firstSource.price_per_m2 * area / 10000);
       const maxVal = Math.max(totalManyen * 3, 3000);
@@ -3563,6 +3571,11 @@ async function loadLandPrice(lat, lng, containerId) {
       const numInput = document.getElementById('landPriceNum');
       if (slider) { slider.max = maxVal; slider.value = totalManyen; }
       if (numInput) { numInput.value = totalManyen; }
+      // 推奨ソースを使っていることを表示
+      const recLabel = document.createElement('div');
+      recLabel.style.cssText = 'font-size:10px;color:#38bdf8;margin-top:2px';
+      recLabel.textContent = `★ ${recommendedName || '推奨ソース'}の価格をデフォルトに設定`;
+      numInput?.parentElement?.appendChild(recLabel);
       updateLeaseCalc();
       if (_currentSite) calcSim(_currentSite.id);
     }

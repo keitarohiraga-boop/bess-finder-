@@ -79,6 +79,139 @@ def _guess_pref_code(lat: float, lng: float) -> str:
     return "13"  # デフォルト: 東京
 BASE_URL = "https://www.reinfolib.mlit.go.jp/ex-api/external"
 
+# ── 地目 → 取引種別マッピング（XIT001の landType パラメータ） ──
+# 01=宅地(土地)  02=宅地(土地と建物)  07=工業系  08=農地(田)  09=農地(畑)
+_LANDTYPE_MAP = {
+    "industrial":       ["07"],
+    "quasi-industrial": ["07", "01"],
+    "unzoned":          ["08", "09", "01"],
+    "residential":      ["01"],
+    "commercial":       ["01"],
+}
+
+
+def _fetch_transaction_price(lat: float, lng: float, pref_code: str, site_use: str) -> dict | None:
+    """不動産情報ライブラリ XIT001 から取引実績を取得し、最近傍の類似地目を返す"""
+    if not API_KEY:
+        return None
+    from datetime import datetime
+    cur_year = datetime.now().year
+    # 直近2年間の取引を検索
+    from_period = f"{cur_year - 2}1"
+    to_period   = f"{cur_year}4"
+
+    land_types = _LANDTYPE_MAP.get(site_use, ["01", "07", "08"])
+
+    best = None
+    best_dist = float("inf")
+
+    for lt in land_types:
+        url = (
+            f"{BASE_URL}/XIT001"
+            f"?response_format=json"
+            f"&area={pref_code}"
+            f"&from={from_period}&to={to_period}"
+            f"&landType={lt}"
+        )
+        req = urllib.request.Request(
+            url, headers={"Ocp-Apim-Subscription-Key": API_KEY}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+            records = data if isinstance(data, list) else data.get("data", [])
+        except Exception:
+            continue
+
+        for rec in records:
+            try:
+                rlat = float(rec.get("Latitude") or rec.get("latitude") or 0)
+                rlng = float(rec.get("Longitude") or rec.get("longitude") or 0)
+                if not rlat or not rlng:
+                    continue
+                dist = haversine(lat, lng, rlat, rlng)
+                if dist > 10000:  # 10km以内に限定
+                    continue
+                # 価格取得（円/m²）
+                price_raw = rec.get("UnitPrice") or rec.get("PricePerUnit") or rec.get("unitPrice")
+                if not price_raw:
+                    continue
+                price = int(str(price_raw).replace(",", ""))
+                if price <= 0:
+                    continue
+                if dist < best_dist:
+                    best_dist = dist
+                    best = {
+                        "price": price,
+                        "dist": round(dist),
+                        "addr": rec.get("Municipality") or rec.get("Address") or "",
+                        "year": str(rec.get("Period") or rec.get("TradeYear") or cur_year - 1)[:4],
+                        "use":  rec.get("Type") or lt,
+                    }
+            except Exception:
+                continue
+
+    if not best:
+        return None
+
+    use_label = {
+        "07": "工業用途",
+        "08": "農地(田)", "09": "農地(畑)",
+        "01": "宅地", "02": "宅地(建物付)",
+    }.get(best["use"], best["use"])
+
+    return {
+        "source_name": f"取引実績（{best['year']}年頃）",
+        "price_per_m2": best["price"],
+        "address": best["addr"],
+        "year": int(best["year"]) if best["year"].isdigit() else None,
+        "use_type": use_label,
+        "distance_m": best["dist"],
+        "confidence": "高" if best["dist"] < 2000 else "中",
+        "confidence_note": f"実際の成約価格（{best['dist']}m先の類似地目）",
+    }
+
+
+def _select_best_source(sources: list[dict], site_use: str) -> dict:
+    """最適ソースを選定。取引実績>公示地価>路線価の優先順位、距離と地目一致も加味"""
+    scored = []
+    for s in sources:
+        score = 0
+        name = s.get("source_name", "")
+        dist = s.get("distance_m", 99999)
+        conf = s.get("confidence", "低")
+
+        # ソース種別スコア
+        if "取引実績" in name:
+            score += 30
+        elif "地価公示" in name:
+            score += 20
+        elif "路線価" in name:
+            score += 5
+
+        # 距離スコア（近いほど高い）
+        if dist < 1000:
+            score += 20
+        elif dist < 3000:
+            score += 10
+        elif dist < 5000:
+            score += 5
+
+        # 信頼度スコア
+        score += {"高": 10, "中": 5, "低": 0, "参考": -5}.get(conf, 0)
+
+        # 地目一致スコア
+        use = s.get("use_type", "")
+        if site_use in ("industrial", "quasi-industrial") and "工業" in use:
+            score += 15
+        elif site_use == "unzoned" and ("農" in use or "工業" in use):
+            score += 10
+
+        scored.append((score, s))
+
+    scored.sort(key=lambda x: -x[0])
+    return scored[0][1] if scored else sources[0]
+
 
 def latlon_to_tile(lat: float, lng: float, z: int = 14) -> tuple[int, int]:
     x = int((lng + 180) / 360 * (2 ** z))
@@ -209,18 +342,42 @@ def get_landprice(
         "confidence_note": confidence_note,
     }
 
-    # 将来の複数ソース対応：sources配列で返す
-    # 取引実績・路線価を追加する場合はここに追加するだけでフロントは変更不要
     sources = [source]
+
+    # ── 取引実績データ（不動産情報ライブラリ XIT001） ──
+    pref_code = _guess_pref_code(lat, lng)
+    tx_source = _fetch_transaction_price(lat, lng, pref_code, nearest.use_type or "")
+    if tx_source:
+        sources.append(tx_source)
+
+    # ── 路線価（公示地価×0.8 業界標準近似） ──
+    rosen_price = round(nearest.price_per_m2 * 0.8)
+    sources.append({
+        "source_name": f"路線価（{nearest.data_year}年・推計）",
+        "price_per_m2": rosen_price,
+        "address": nearest.address,
+        "year": nearest.data_year,
+        "use_type": nearest.use_type,
+        "distance_m": dist_m,
+        "confidence": "参考",
+        "confidence_note": "公示地価×0.8の業界標準近似値（実際の路線価は国税庁サイトを確認）",
+    })
+
+    # ── 最適ソース選定 ──
+    # 取引実績が近距離かつ地目一致 → 最優先
+    # 公示地価が工業用途一致 → 次点
+    # それ以外は公示地価をデフォルト
+    recommended_source = _select_best_source(sources, nearest.use_type or "")
     prices = [s["price_per_m2"] for s in sources if s.get("price_per_m2")]
 
     return {
         "count": len(candidates),
         "sources": sources,
+        "recommended_source": recommended_source["source_name"],
         "summary": {
             "range_min": min(prices) if prices else None,
             "range_max": max(prices) if prices else None,
-            "recommended": prices[0] if prices else None,
+            "recommended": recommended_source["price_per_m2"],
         },
         # 後方互換性のため nearest も残す
         "nearest": {
