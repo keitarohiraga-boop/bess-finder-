@@ -336,6 +336,93 @@ def list_prefectures():
     return {"prefectures": list(PREF_CODE_MAP.keys())}
 
 
+@router.get("/spot-check", summary="1座標でWAGRI→スコア→登録パイプラインをテスト（最小リクエスト数）")
+def spot_check(
+    lat: float = 36.16,
+    lng: float = 140.52,
+    radius_m: int = 500,
+    register: bool = False,
+    db: Session = Depends(get_db),
+):
+    """
+    WAGRIのデータ取得からスコアリング・候補地登録までを1リクエストで検証。
+    register=false（デフォルト）はドライラン（登録しない）。
+    register=true で実際にDBに登録する。
+    """
+    # 都道府県を逆引き
+    pref = "茨城県"
+    for p, (lat_min, lat_max, lng_min, lng_max) in _PREF_BOUNDS.items():
+        if lat_min <= lat <= lat_max and lng_min <= lng <= lng_max:
+            pref = p
+            break
+
+    # WAGRI呼び出し（1リクエスト）
+    try:
+        features = _wagri_by_distance(lat, lng, radius_m)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"WAGRI呼び出し失敗: {str(e)}")
+
+    # 農地分析
+    farm_class = None
+    class3_count = 0
+    areas = []
+    for feat in features:
+        fc = _determine_farm_class([feat])
+        if fc == "class3-farm":
+            class3_count += 1
+            areas.append(feat.get("Area", 0))
+        if farm_class is None:
+            farm_class = fc
+
+    total_area = sum(areas)
+    scores = _score_candidate(lat, lng, total_area or 5000, pref, db) if features else None
+
+    result = {
+        "wagri_request_count": 1,
+        "total_features": len(features),
+        "class3_farm_count": class3_count,
+        "total_area_m2": total_area,
+        "farm_class_detected": farm_class,
+        "scores": scores,
+        "would_register": scores is not None and scores["overall"] >= 50,
+        "sample": features[0] if features else None,
+    }
+
+    # 実際に登録する場合
+    if register and scores and scores["overall"] >= 50 and class3_count > 0:
+        existing = db.query(models.Site).filter(
+            models.Site.lat.between(lat - 0.005, lat + 0.005),
+            models.Site.lng.between(lng - 0.005, lng + 0.005),
+        ).first()
+        if not existing:
+            site = models.Site(
+                name=f"【WAGRI検証】{pref} 農地転用候補",
+                address=features[0].get("Address", f"{pref}") if features else pref,
+                prefecture=pref,
+                area=total_area or 5000,
+                landuse="unzoned",
+                landuse_label="農地転用候補（第3種）",
+                flood="none", flood_label="未確認",
+                slope=2.0,
+                substation_dist=scores["subst_dist"],
+                land_price=None,
+                farm_class="class3-farm",
+                soil_risk="未確認",
+                road_width=4.0,
+                score=scores["overall"],
+                lat=lat, lng=lng,
+            )
+            db.add(site)
+            db.commit()
+            result["registered"] = True
+            result["site_score"] = scores["overall"]
+        else:
+            result["registered"] = False
+            result["note"] = "既存サイトの近くのため登録スキップ"
+
+    return result
+
+
 @router.post("/prefecture", summary="都道府県単位で農地候補地をスキャン・登録（SSEストリーミング）")
 def scan_prefecture(
     prefecture: str,
