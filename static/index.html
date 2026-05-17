@@ -4088,6 +4088,58 @@ function renderSimulator(site) {
       </div>
     </details>
 
+    <!-- 資金調達（補助金・銀行融資）アコーディオン -->
+    <details style="margin-top:10px;border:1px solid #f59e0b;border-radius:8px;overflow:hidden">
+      <summary style="padding:10px 14px;background:#0f172a;color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center">
+        💰 資金調達（補助金・銀行融資）→ 自己資本IRRを計算
+        <span style="font-size:10px">▶</span>
+      </summary>
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+        <!-- 補助金 -->
+        <div style="border-bottom:1px solid #334155;padding-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <input type="checkbox" id="advSubsidyOn" onchange="if(_currentSite)calcSim(_currentSite.id)"
+              style="width:16px;height:16px;accent-color:#f59e0b;cursor:pointer">
+            <label style="font-size:12px;color:#fbbf24;font-weight:600;cursor:pointer" onclick="document.getElementById('advSubsidyOn').click()">補助金あり（経産省 系統用蓄電池等導入支援）</label>
+          </div>
+          <div class="sim-input-row">
+            <label>補助率 <span id="advSubsidyRateLabel">33</span>%（CAPEX削減）</label>
+            <input type="range" id="advSubsidyRate" min="10" max="90" step="1" value="33"
+              style="width:100%;accent-color:#f59e0b;cursor:pointer"
+              oninput="document.getElementById('advSubsidyRateLabel').textContent=this.value;if(_currentSite)calcSim(_currentSite.id)">
+          </div>
+          <div style="font-size:9px;color:#475569">2025年度採択実績：平均補助率33%、最大40億円/件</div>
+        </div>
+        <!-- 銀行融資 -->
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <input type="checkbox" id="advLoanOn" onchange="if(_currentSite)calcSim(_currentSite.id)"
+              style="width:16px;height:16px;accent-color:#38bdf8;cursor:pointer">
+            <label style="font-size:12px;color:#38bdf8;font-weight:600;cursor:pointer" onclick="document.getElementById('advLoanOn').click()">銀行融資（プロジェクトファイナンス）</label>
+          </div>
+          <div class="sim-input-row">
+            <label>融資比率 <span id="advLoanRatioLabel">70</span>%（自己資本<span id="advEquityRatioLabel">30</span>%）</label>
+            <input type="range" id="advLoanRatio" min="20" max="90" step="5" value="70"
+              style="width:100%;accent-color:#38bdf8;cursor:pointer"
+              oninput="document.getElementById('advLoanRatioLabel').textContent=this.value;document.getElementById('advEquityRatioLabel').textContent=100-this.value;if(_currentSite)calcSim(_currentSite.id)">
+          </div>
+          <div class="sim-input-row">
+            <label>金利 <span id="advLoanRateLabel">1.5</span>%</label>
+            <input type="range" id="advLoanRate" min="0.5" max="5" step="0.1" value="1.5"
+              style="width:100%;accent-color:#38bdf8;cursor:pointer"
+              oninput="document.getElementById('advLoanRateLabel').textContent=parseFloat(this.value).toFixed(1);if(_currentSite)calcSim(_currentSite.id)">
+          </div>
+          <div class="sim-input-row">
+            <label>融資期間 <span id="advLoanYearsLabel">15</span>年</label>
+            <input type="range" id="advLoanYears" min="5" max="20" step="1" value="15"
+              style="width:100%;accent-color:#38bdf8;cursor:pointer"
+              oninput="document.getElementById('advLoanYearsLabel').textContent=this.value;if(_currentSite)calcSim(_currentSite.id)">
+          </div>
+          <div style="font-size:9px;color:#475569">金融機関の目安：自己資本20〜30%以上、DSCR 1.2以上</div>
+        </div>
+      </div>
+    </details>
+
     <div id="simResults${site.id}"></div>
   `;
 }
@@ -4165,10 +4217,43 @@ function calcSim(siteId, skipLandUpdate = false) {
   // ── 設備+土地コスト計算 ──
   const equipCapex = unit_man * 10000 * cap_kwh;
   const capex      = equipCapex + landCost.capexAdd;
-  const om_cost    = equipCapex * omRate;           // 詳細設定のO&M費率を使用
+  const om_cost    = equipCapex * omRate;
   const annual_lease = landCost.annualAdd;
   const net_rev    = rev_total - om_cost - annual_lease;
   const payback    = net_rev > 0 ? capex / net_rev : null;
+
+  // ── 補助金・銀行融資（レバレッジ計算）──
+  const subsidyOn   = document.getElementById("advSubsidyOn")?.checked || false;
+  const subsidyRate = subsidyOn ? (parseFloat(document.getElementById("advSubsidyRate")?.value || 33) / 100) : 0;
+  const loanOn      = document.getElementById("advLoanOn")?.checked || false;
+  const loanRatio   = loanOn ? (parseFloat(document.getElementById("advLoanRatio")?.value || 70) / 100) : 0;
+  const loanRate    = parseFloat(document.getElementById("advLoanRate")?.value || 1.5) / 100;
+  const loanYears   = parseInt(document.getElementById("advLoanYears")?.value || 15);
+
+  const subsidy       = capex * subsidyRate;
+  const capexEffective = capex - subsidy;  // 補助金控除後CAPEX
+  const loanAmount    = capexEffective * loanRatio;
+  const equityAmount  = capexEffective - loanAmount;
+
+  // 年間元利均等返済
+  const annualRepayment = loanAmount > 0 && loanRate > 0
+    ? loanAmount * loanRate * Math.pow(1+loanRate, loanYears) / (Math.pow(1+loanRate, loanYears) - 1)
+    : 0;
+
+  // 自己資本キャッシュフロー（返済後残余）
+  function calcEquityFlows(equity, netRevYr1, repayment, dRate, lYears, total=20) {
+    const flows = [-equity];
+    for (let y = 1; y <= total; y++) {
+      const rev = netRevYr1 * Math.pow(1 - dRate, y - 1);
+      const debt = y <= lYears ? repayment : 0;
+      flows.push(rev - debt);
+    }
+    return flows;
+  }
+  const eFlows = (subsidyOn || loanOn)
+    ? calcEquityFlows(equityAmount, net_rev, annualRepayment, degRate, loanYears)
+    : null;
+  const equityIRR = eFlows ? calcIRR(eFlows) : null;
 
   const fmt = n => n >= 1e8
     ? `${(n/1e8).toFixed(1)}億円`
@@ -4188,6 +4273,31 @@ function calcSim(siteId, skipLandUpdate = false) {
       <span style="color:#94a3b8">${capLabel}${capConfirmed ? '　※この年度への新規入札はできません' : '　※実際の価格はオークション結果で決定'}</span>
     </div>`}
 
+    ${(subsidyOn || loanOn) ? `
+    <div style="background:#1a1500;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:11px">
+      <div style="color:#fbbf24;font-weight:600;margin-bottom:6px">💰 資金調達シミュレーション</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <div style="text-align:center">
+          <div style="color:#64748b;font-size:10px">補助金</div>
+          <div style="color:#fbbf24;font-weight:700">${fmt(subsidy)}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="color:#64748b;font-size:10px">銀行融資</div>
+          <div style="color:#38bdf8;font-weight:700">${fmt(loanAmount)}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="color:#64748b;font-size:10px">自己資金</div>
+          <div style="color:#e2e8f0;font-weight:700">${fmt(equityAmount)}</div>
+        </div>
+      </div>
+      ${annualRepayment > 0 ? `<div style="color:#475569;font-size:10px">年間返済：${fmt(annualRepayment)}/年 × ${loanYears}年</div>` : ''}
+      ${equityIRR !== null ? `
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #334155;display:flex;align-items:center;justify-content:space-between">
+        <div style="color:#94a3b8;font-size:11px">自己資本IRR（レバレッジ後）</div>
+        <div style="font-size:22px;font-weight:700;color:${equityIRR>=0.2?'#4ade80':equityIRR>=0.1?'#fbbf24':'#f87171'}">${(equityIRR*100).toFixed(1)}%</div>
+      </div>` : ''}
+    </div>` : ''}
+
     <div class="sim-result-grid">
       <div class="sim-result-card">
         <div class="label">年間総収益（概算）</div>
@@ -4197,7 +4307,7 @@ function calcSim(siteId, skipLandUpdate = false) {
       <div class="sim-result-card">
         <div class="label">設備CAPEX（概算）</div>
         <div class="value">${fmt(capex)}</div>
-        <div class="sub">設備費のみ（土地・連系工事別）</div>
+        <div class="sub">${subsidyOn ? `補助後 ${fmt(capexEffective)}` : '設備費のみ（土地・連系工事別）'}</div>
       </div>
       <div class="sim-result-card">
         <div class="label">純収益（O&M控除後）</div>
