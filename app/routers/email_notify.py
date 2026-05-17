@@ -168,6 +168,25 @@ def status():
     }
 
 
+@router.get("/verify-key", summary="APIキーの有効性を確認（送信なし）")
+def verify_key():
+    """Resend APIキーでドメイン一覧を取得してキーが有効か確認"""
+    if not RESEND_API_KEY:
+        raise HTTPException(status_code=503, detail="RESEND_API_KEY未設定")
+    req = urllib.request.Request(
+        "https://api.resend.com/domains",
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            return {"ok": True, "domains": result.get("data", [])}
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode()
+        raise HTTPException(status_code=e.code, detail=f"Resend APIキーエラー: {e.code} {error_body}")
+
+
 @router.get("/test", summary="自分宛にテストメールを送信")
 def test_send():
     """from_emailに自分宛でシンプルなテストメールを送る"""
