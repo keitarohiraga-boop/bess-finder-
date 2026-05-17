@@ -16,7 +16,7 @@ from typing import Optional
 router = APIRouter(prefix="/email", tags=["email"])
 
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
-FROM_EMAIL    = os.getenv("GMAIL_USER", "")
+FROM_EMAIL    = os.getenv("SENDGRID_FROM_EMAIL", os.getenv("GMAIL_USER", ""))
 FROM_NAME     = os.getenv("SENDGRID_FROM_NAME", "BESS Site Finder")
 
 
@@ -26,7 +26,7 @@ def _send_email(to_email: str, to_name: str, subject: str, body_text: str, body_
     if not BREVO_API_KEY:
         raise HTTPException(status_code=503, detail="BREVO_API_KEY が未設定です")
     if not FROM_EMAIL:
-        raise HTTPException(status_code=503, detail="GMAIL_USER（送信元アドレス）が未設定です")
+        raise HTTPException(status_code=503, detail="SENDGRID_FROM_EMAIL が未設定です")
 
     payload = {
         "sender":      {"name": FROM_NAME, "email": FROM_EMAIL},
