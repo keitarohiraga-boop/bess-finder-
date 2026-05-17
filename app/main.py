@@ -6,7 +6,7 @@ import os
 
 from app.database import engine
 from app import models
-from app.routers import sites, jepx, substations, solar, curtailment, hazard, fit_solar, evaluate, demand, outage_ev, bess, reinfolib, cases, slack, simulate, agent, wagri, email_notify
+from app.routers import sites, jepx, substations, solar, curtailment, hazard, fit_solar, evaluate, demand, outage_ev, bess, reinfolib, cases, slack, simulate, agent, wagri, email_notify, scan
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -41,6 +41,7 @@ app.include_router(simulate.router, prefix="/api/v1")
 app.include_router(agent.router, prefix="/api/v1")
 app.include_router(wagri.router, prefix="/api/v1")
 app.include_router(email_notify.router, prefix="/api/v1")
+app.include_router(scan.router, prefix="/api/v1")
 
 # フロントエンドの静的ファイルを配信
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
