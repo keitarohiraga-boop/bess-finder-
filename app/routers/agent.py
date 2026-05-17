@@ -109,7 +109,7 @@ TOOLS = [
     },
     {
         "name": "send_slack",
-        "description": "Slackの#bess-site-finderチャンネルにメッセージを投稿する。",
+        "description": "Slackの#bess-site-finderチャンネルにメッセージを投稿する（社内向け）。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -118,6 +118,20 @@ TOOLS = [
                 "thread_ts":    {"type": "string", "description": "スレッド返信先ts（省略可）"},
             },
             "required": ["message_type", "payload"],
+        },
+    },
+    {
+        "name": "send_email",
+        "description": "外部の不動産仲介業者に照会メールを送信する。承認後に仲介依頼する際に使用。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to_email":    {"type": "string", "description": "送信先メールアドレス"},
+                "to_name":     {"type": "string", "description": "送信先会社名・担当者名"},
+                "site_id":     {"type": "integer", "description": "候補地ID"},
+                "note":        {"type": "string", "description": "追記したいメモ（省略可）"},
+            },
+            "required": ["to_email", "site_id"],
         },
     },
 ]
@@ -141,6 +155,8 @@ def _run_tool(name: str, inputs: dict, db: Session) -> str:
             return _tool_update_case(inputs, db)
         elif name == "send_slack":
             return _tool_send_slack(inputs)
+        elif name == "send_email":
+            return _tool_send_email(inputs, db)
         else:
             return f"未知のツール: {name}"
     except Exception as e:
@@ -301,6 +317,38 @@ def _tool_send_slack(inputs: dict) -> str:
         payload["thread_ts"] = inputs["thread_ts"]
     result = _call_slack_api("chat.postMessage", payload)
     return json.dumps({"ok": True, "ts": result.get("ts")}, ensure_ascii=False)
+
+
+def _tool_send_email(inputs: dict, db: Session) -> str:
+    from app.routers.email_notify import _send_email, _build_inquiry_email, FROM_EMAIL
+    site = db.get(models.Site, inputs["site_id"])
+    if not site:
+        return json.dumps({"error": "候補地が見つかりません"}, ensure_ascii=False)
+    case = db.query(models.SiteCase).filter(models.SiteCase.site_id == site.id).first()
+    scores = site.score or 0
+    payload = {
+        "site_name":    site.name,
+        "site_address": site.address,
+        "area_m2":      site.area,
+        "score":        scores,
+        "note":         inputs.get("note", ""),
+        "agent_name":   inputs.get("to_name", "不動産会社"),
+        "contact_email": FROM_EMAIL,
+    }
+    subject = f"【蓄電池用地 照会】{site.address}について"
+    text, html = _build_inquiry_email(payload)
+    result = _send_email(inputs["to_email"], inputs.get("to_name", ""), subject, text, html)
+    # 案件メモに送信記録
+    if case:
+        notes = json.loads(case.notes or "[]")
+        notes.append({
+            "text": f"📧 {inputs['to_email']} に照会メール送信",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "author": "🤖 Agent",
+        })
+        case.notes = json.dumps(notes, ensure_ascii=False)
+        db.commit()
+    return json.dumps({"ok": True, "to": inputs["to_email"]}, ensure_ascii=False)
 
 
 # ===== SSEストリーミング =====

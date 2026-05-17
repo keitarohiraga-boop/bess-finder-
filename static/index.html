@@ -5080,14 +5080,19 @@ out center;`;
     }).sort((a, b) => (a._dist ?? 9e9) - (b._dist ?? 9e9));
 
     const items = withDist.slice(0, 15).map(e => {
-      const name = e.tags?.name || e.tags?.["name:ja"] || "（名称不明）";
-      const gUrl = `https://www.google.com/search?q=${encodeURIComponent(name + " 不動産 " + city)}`;
+      const name    = e.tags?.name || e.tags?.["name:ja"] || "（名称不明）";
+      const osmEmail = e.tags?.email || e.tags?.["contact:email"] || "";
+      const gUrl    = `https://www.google.com/search?q=${encodeURIComponent(name + " 不動産 " + city)}`;
       const distLabel = e._dist != null
         ? `<span style="font-size:10px;color:#64748b">${e._dist >= 1000 ? (e._dist/1000).toFixed(1)+"km" : e._dist+"m"}</span>`
         : "";
-      return `<div style="padding:5px 0;border-bottom:1px solid #1e293b;font-size:11px;display:flex;justify-content:space-between;align-items:center">
-        <a href="${gUrl}" target="_blank" rel="noopener" style="color:#38bdf8;text-decoration:none">${name} <span style="font-size:9px;opacity:0.6">↗</span></a>
-        ${distLabel}
+      const emailBtn = `<button onclick="promptAgentEmail(${siteId},'${name.replace(/'/g,"\\'")}','${osmEmail}')"
+        style="font-size:10px;padding:2px 6px;background:#0f172a;border:1px solid #334155;color:#94a3b8;border-radius:4px;cursor:pointer;white-space:nowrap">
+        📧 照会
+      </button>`;
+      return `<div style="padding:5px 0;border-bottom:1px solid #1e293b;font-size:11px;display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <a href="${gUrl}" target="_blank" rel="noopener" style="color:#38bdf8;text-decoration:none;flex:1">${name} <span style="font-size:9px;opacity:0.6">↗</span></a>
+        <div style="display:flex;align-items:center;gap:6px">${distLabel}${emailBtn}</div>
       </div>`;
     }).join("");
 
@@ -5095,6 +5100,97 @@ out center;`;
       <div style="font-size:10px;color:#475569;margin-top:4px">出典: OpenStreetMap（登録データのみ）</div>`;
   } catch(e) {
     el.innerHTML = `<div style="font-size:11px;color:#475569">取得失敗。「その他を検索」をお試しください。</div>`;
+  }
+}
+
+function promptAgentEmail(siteId, agentName, knownEmail) {
+  // 動的フォームを生成してメール送信を承認
+  var old = document.getElementById("agentEmailOverlay");
+  if (old) old.remove();
+
+  var ov = document.createElement("div");
+  ov.id = "agentEmailOverlay";
+  ov.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;";
+  ov.innerHTML = `
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:420px;max-width:96vw;padding:24px">
+      <div style="font-size:15px;font-weight:700;color:#e2e8f0;margin-bottom:4px">📧 仲介依頼メール送信</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:16px">${agentName}</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">送信先メールアドレス <span style="color:#f87171">*</span></label>
+        <input id="agentEmailInput" type="email" value="${knownEmail}" placeholder="例: info@example-fudosan.co.jp"
+          style="width:100%;background:#0f172a;border:1px solid #475569;color:#e2e8f0;padding:8px 10px;border-radius:6px;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">一言メモ（省略可）</label>
+        <input id="agentEmailNote" type="text" placeholder="例: 農地転用可能な物件です"
+          style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px 10px;border-radius:6px;font-size:12px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="font-size:10px;color:#475569;margin-bottom:16px;padding:8px;background:#0f172a;border-radius:6px">
+        候補地の住所・面積・スコア情報を含む照会メールが自動生成されて送信されます。
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('agentEmailOverlay').remove()"
+          style="flex:1;padding:9px;background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:6px;cursor:pointer;font-size:12px">キャンセル</button>
+        <button id="agentEmailSendBtn" onclick="sendAgentEmail(${siteId},'${agentName.replace(/'/g,"\\'")}',this)"
+          style="flex:2;padding:9px;background:#0ea5e9;border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">📧 送信する</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  setTimeout(() => document.getElementById("agentEmailInput")?.focus(), 100);
+}
+
+async function sendAgentEmail(siteId, agentName, btn) {
+  const emailInput = document.getElementById("agentEmailInput");
+  const noteInput  = document.getElementById("agentEmailNote");
+  const toEmail = emailInput?.value?.trim();
+  if (!toEmail) { emailInput.style.borderColor = "#f87171"; return; }
+
+  btn.textContent = "送信中...";
+  btn.disabled = true;
+
+  try {
+    const site = currentSites.find(s => s.id === siteId) || SITES.find(s => s.id === siteId);
+    const res2 = await fetch(`${API_BASE}/email/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to_email:     toEmail,
+        to_name:      agentName,
+        subject:      `【蓄電池用地 照会】${site?.address || "候補地"}について`,
+        message_type: "inquiry",
+        payload: {
+          site_name:    site?.name || "",
+          site_address: site?.address || "",
+          area_m2:      site?.area || "",
+          score:        site?.score || "",
+          agent_name:   agentName,
+          note:         noteInput?.value?.trim() || "",
+        }
+      })
+    });
+
+    if (res2.ok) {
+      btn.textContent = "✅ 送信完了";
+      btn.style.background = "#14532d";
+      setTimeout(() => document.getElementById("agentEmailOverlay")?.remove(), 1500);
+      // 案件メモに記録
+      const c = _caseMap[siteId];
+      if (c) {
+        await fetch(`${API_BASE}/cases/${c.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ add_note: `📧 ${agentName}（${toEmail}）に照会メール送信`, author: "担当" })
+        });
+      }
+    } else {
+      const err = await res2.json();
+      btn.textContent = "❌ 送信失敗";
+      btn.disabled = false;
+      alert(err.detail || "送信失敗");
+    }
+  } catch(e) {
+    btn.textContent = "❌ エラー";
+    btn.disabled = false;
   }
 }
 
