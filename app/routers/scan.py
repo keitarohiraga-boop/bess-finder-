@@ -354,6 +354,205 @@ async def _run_scan(
     })
 
 
+# ===== OSM (Overpass API) スキャン =====
+
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+
+# 低圧BESS（49.9kW）候補として抽出するOSMタグ
+_OSM_TAGS = [
+    ("amenity", "parking"),
+    ("landuse",  "brownfield"),
+    ("landuse",  "vacant"),
+    ("landuse",  "industrial"),
+]
+
+_OSM_LABEL = {
+    "parking":    "駐車場",
+    "brownfield": "遊休地（元工業）",
+    "vacant":     "空き地",
+    "industrial": "工業用地",
+}
+
+
+def _polygon_area_m2(coords: list[tuple]) -> float:
+    """緯度経度ポリゴンの面積をm²で返す（Shoelace + 球面補正）"""
+    n = len(coords)
+    if n < 3:
+        return 0.0
+    avg_lat = sum(c[0] for c in coords) / n
+    lat_m = 111320.0
+    lng_m = 111320.0 * math.cos(math.radians(avg_lat))
+    area = 0.0
+    for i in range(n):
+        j = (i + 1) % n
+        xi, yi = coords[i][1] * lng_m, coords[i][0] * lat_m
+        xj, yj = coords[j][1] * lng_m, coords[j][0] * lat_m
+        area += xi * yj - xj * yi
+    return abs(area) / 2.0
+
+
+def _query_osm_candidates(lat: float, lng: float, radius_m: int = 500) -> list[dict]:
+    """Overpass APIで候補地（駐車場・遊休地等）を取得。認証不要・無料。"""
+    tag_lines = "\n  ".join(
+        f'way["{k}"="{v}"](around:{radius_m},{lat},{lng});'
+        for k, v in _OSM_TAGS
+    )
+    query = f"[out:json][timeout:30];\n(\n  {tag_lines}\n);\nout body;\n>;\nout skel qt;\n"
+    try:
+        req = urllib.request.Request(
+            OVERPASS_URL,
+            data=query.encode("utf-8"),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        with urllib.request.urlopen(req, timeout=35) as resp:
+            result = json.loads(resp.read())
+    except Exception as e:
+        raise RuntimeError(f"Overpass API: {str(e)[:80]}")
+
+    nodes = {
+        e["id"]: (e["lat"], e["lon"])
+        for e in result.get("elements", [])
+        if e["type"] == "node"
+    }
+
+    candidates, seen = [], set()
+    for elem in result.get("elements", []):
+        if elem["type"] != "way":
+            continue
+        tags = elem.get("tags", {})
+        coords = [nodes[nid] for nid in elem.get("nodes", []) if nid in nodes]
+        if len(coords) < 3:
+            continue
+        area = _polygon_area_m2(coords)
+        if area < 15:  # 15m²未満は無視
+            continue
+        clat = round(sum(c[0] for c in coords) / len(coords), 5)
+        clng = round(sum(c[1] for c in coords) / len(coords), 5)
+        key = (clat, clng)
+        if key in seen:
+            continue
+        seen.add(key)
+        land_type = tags.get("amenity") or tags.get("landuse", "unknown")
+        candidates.append({
+            "lat": clat, "lng": clng,
+            "area": round(area),
+            "land_type": land_type,
+            "land_label": _OSM_LABEL.get(land_type, land_type),
+            "name": tags.get("name", ""),
+            "osm_id": elem["id"],
+        })
+    return candidates
+
+
+async def _run_osm_scan(
+    prefecture: str,
+    min_score: int,
+    max_register: int,
+    db: Session,
+    radius_m: int = 500,
+    min_area_m2: int = 20,
+    max_substations: int = 50,
+) -> AsyncGenerator[str, None]:
+    """変電所を起点にOverpass APIで低圧BESS候補地をスキャン"""
+    # 対象変電所を都道府県でフィルタ（DBから）
+    substations = db.query(models.Substation).filter(
+        models.Substation.prefecture == prefecture
+    ).limit(max_substations).all()
+
+    if not substations:
+        yield _sse("error", {"message": f"{prefecture}の変電所データが見つかりません"})
+        return
+
+    yield _sse("start", {
+        "message": (
+            f"{prefecture}のOSMスキャンを開始します "
+            f"（変電所{len(substations)}箇所 × 半径{radius_m}m）"
+        )
+    })
+
+    seen_coords: set = set()
+    candidates = []
+
+    for i, sub in enumerate(substations):
+        yield _sse("progress", {
+            "message": f"[{i+1}/{len(substations)}] {sub.name}（{sub.lat:.3f},{sub.lng:.3f}）周辺をスキャン中...",
+            "current": i + 1, "total": len(substations),
+        })
+        try:
+            osm_hits = _query_osm_candidates(sub.lat, sub.lng, radius_m)
+        except Exception as e:
+            yield _sse("progress", {"message": f"  → スキップ: {str(e)[:50]}"})
+            time.sleep(1.0)
+            continue
+
+        new_hits = 0
+        for hit in osm_hits:
+            if hit["area"] < min_area_m2:
+                continue
+            key = (hit["lat"], hit["lng"])
+            if key in seen_coords:
+                continue
+            seen_coords.add(key)
+
+            pref = prefecture
+            scores = _score_candidate(hit["lat"], hit["lng"], hit["area"], pref, db)
+            candidates.append({**hit, "prefecture": pref, "scores": scores})
+            new_hits += 1
+
+        yield _sse("progress", {"message": f"  → {len(osm_hits)}件取得、新規{new_hits}件"})
+        time.sleep(0.5)  # Overpassへの礼儀
+
+    yield _sse("progress", {
+        "message": f"スキャン完了。{len(candidates)}件の候補地を発見。スコア上位を登録中..."
+    })
+
+    candidates.sort(key=lambda c: c["scores"]["overall"], reverse=True)
+    registered = 0
+
+    for cand in candidates:
+        if registered >= max_register:
+            break
+        s = cand["scores"]
+        if s["overall"] < min_score:
+            continue
+
+        existing = db.query(models.Site).filter(
+            models.Site.lat.between(cand["lat"] - 0.005, cand["lat"] + 0.005),
+            models.Site.lng.between(cand["lng"] - 0.005, cand["lng"] + 0.005),
+        ).all()
+        if any(haversine(cand["lat"], cand["lng"], sx.lat, sx.lng) < 300 for sx in existing):
+            continue
+
+        label = cand["land_label"]
+        name_hint = f"「{cand['name']}」" if cand["name"] else ""
+        db.add(models.Site(
+            name=f"【OSM発見】{label}{name_hint} {cand['prefecture']}",
+            address=cand["prefecture"],
+            prefecture=cand["prefecture"],
+            area=cand["area"],
+            landuse="osm",
+            landuse_label=label,
+            flood="none", flood_label="未確認",
+            slope=2.0,
+            substation_dist=s["subst_dist"],
+            land_price=None,
+            farm_class=None,
+            soil_risk="未確認",
+            road_width=4.0,
+            score=s["overall"],
+            lat=cand["lat"], lng=cand["lng"],
+        ))
+        registered += 1
+
+    db.commit()
+    yield _sse("done", {
+        "message": f"完了！{registered}件の低圧BESS候補地を登録しました",
+        "registered": registered,
+        "found": len(candidates),
+        "source": "OSM",
+    })
+
+
 # ===== エンドポイント =====
 
 @router.get("/prefectures", summary="スキャン対象都道府県一覧")
@@ -482,6 +681,83 @@ def scan_prefecture(
             radius_m=radius_m,
             max_requests=max_requests,
             max_features_per_point=max_features_per_point,
+        ):
+            yield chunk
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ===== OSMエンドポイント =====
+
+@router.get("/osm-spot-check", summary="OSM Overpass APIの動作確認（1座標・無料）")
+def osm_spot_check(
+    lat: float = 35.68,
+    lng: float = 139.69,
+    radius_m: int = 500,
+    db: Session = Depends(get_db),
+):
+    """
+    指定座標周辺のOSM候補地（駐車場・遊休地等）を取得して返す。
+    WAGRI不要・無料・認証なし。低圧BESS（49.9kW）候補地の動作確認用。
+    """
+    try:
+        hits = _query_osm_candidates(lat, lng, radius_m)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    pref = "東京都"
+    for p, (lat_min, lat_max, lng_min, lng_max) in _PREF_BOUNDS.items():
+        if lat_min <= lat <= lat_max and lng_min <= lng <= lng_max:
+            pref = p
+            break
+
+    results = []
+    for h in hits:
+        scores = _score_candidate(h["lat"], h["lng"], h["area"], pref, db)
+        results.append({**h, "scores": scores, "prefecture": pref})
+
+    return {
+        "total_found": len(hits),
+        "radius_m": radius_m,
+        "source": "OSM Overpass API",
+        "candidates": sorted(results, key=lambda x: x["scores"]["overall"], reverse=True)[:20],
+    }
+
+
+@router.post("/osm-prefecture", summary="都道府県の変電所起点でOSM低圧BESS候補地をスキャン（SSE）")
+def scan_osm_prefecture(
+    prefecture: str,
+    min_score: int = 40,
+    max_register: int = 200,
+    radius_m: int = 500,
+    min_area_m2: int = 20,
+    max_substations: int = 50,
+    db: Session = Depends(get_db),
+):
+    """
+    都道府県内の変電所を起点にOverpass APIで低圧BESS候補地（駐車場・遊休地等）をスキャン。
+    WAGRIを使わないため無料で即時実行可能。
+
+    - radius_m: 各変電所から何m以内を検索するか（デフォルト500m）
+    - min_area_m2: 最小面積フィルタ（デフォルト20m²=約6坪）
+    - max_substations: 対象変電所の上限数（大きい都道府県では絞り込み）
+    """
+    if prefecture not in PREF_CODE_MAP:
+        raise HTTPException(status_code=400, detail=f"都道府県名が不正です: {prefecture}")
+
+    radius_m = min(radius_m, 2000)
+    max_substations = min(max_substations, 200)
+
+    async def generate():
+        async for chunk in _run_osm_scan(
+            prefecture, min_score, max_register, db,
+            radius_m=radius_m,
+            min_area_m2=min_area_m2,
+            max_substations=max_substations,
         ):
             yield chunk
 
