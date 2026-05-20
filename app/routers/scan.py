@@ -399,9 +399,11 @@ def _query_osm_candidates(lat: float, lng: float, radius_m: int = 500) -> list[d
     )
     query = f"[out:json][timeout:30];\n(\n  {tag_lines}\n);\nout body;\n>;\nout skel qt;\n"
     try:
+        import urllib.parse
+        body = urllib.parse.urlencode({"data": query}).encode("utf-8")
         req = urllib.request.Request(
             OVERPASS_URL,
-            data=query.encode("utf-8"),
+            data=body,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         with urllib.request.urlopen(req, timeout=35) as resp:
