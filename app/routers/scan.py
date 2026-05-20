@@ -404,7 +404,11 @@ def _query_osm_candidates(lat: float, lng: float, radius_m: int = 500) -> list[d
         req = urllib.request.Request(
             OVERPASS_URL,
             data=body,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "BSRI-BESSFinder/1.0 (bess-site-finder; contact@bsri.jp)",
+                "Accept": "application/json",
+            },
         )
         with urllib.request.urlopen(req, timeout=35) as resp:
             result = json.loads(resp.read())
