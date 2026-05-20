@@ -229,31 +229,55 @@ def _make_grid(pref: str, grid_km: float = 15.0) -> list[tuple]:
     return points
 
 
-async def _run_scan(prefecture: str, min_score: int, max_register: int, db: Session) -> AsyncGenerator[str, None]:
+async def _run_scan(
+    prefecture: str,
+    min_score: int,
+    max_register: int,
+    db: Session,
+    grid_km: float = 20.0,
+    radius_m: int = 2000,
+    max_requests: int = 20,
+    max_features_per_point: int = 50,
+) -> AsyncGenerator[str, None]:
     if prefecture not in _PREF_BOUNDS:
         yield _sse("error", {"message": f"都道府県名が不正: {prefecture}"})
         return
 
-    yield _sse("start", {"message": f"{prefecture}のスキャンを開始します（15km格子×SearchByDistance方式）"})
+    yield _sse("start", {"message": (
+        f"{prefecture}のスキャンを開始します "
+        f"（格子{grid_km}km／半径{radius_m}m／最大{max_requests}リクエスト）"
+    )})
 
-    grid = _make_grid(prefecture, grid_km=15.0)
-    radius_m = 9000  # 15km格子に対して9km半径でオーバーラップさせて網羅
-    yield _sse("progress", {"message": f"{len(grid)}格子点をスキャンします", "total": len(grid)})
+    grid = _make_grid(prefecture, grid_km=grid_km)
+    yield _sse("progress", {"message": f"{len(grid)}格子点（最大{max_requests}点を処理）", "total": min(len(grid), max_requests)})
 
-    seen_coords = set()  # 重複除去用
+    seen_coords = set()
     candidates = []
+    request_count = 0
 
     for i, (lat, lng) in enumerate(grid):
+        if request_count >= max_requests:
+            yield _sse("progress", {"message": f"リクエスト上限（{max_requests}回）に達したため停止"})
+            break
+
         yield _sse("progress", {
-            "message": f"[{i+1}/{len(grid)}] ({lat:.3f}, {lng:.3f}) をスキャン中...",
-            "current": i + 1, "total": len(grid)
+            "message": f"[{request_count+1}/{max_requests}] ({lat:.3f}, {lng:.3f}) をスキャン中...",
+            "current": request_count + 1, "total": max_requests
         })
 
         try:
             features = _wagri_by_distance(lat, lng, radius_m)
+            request_count += 1
         except Exception as e:
             yield _sse("progress", {"message": f"スキップ: {str(e)[:40]}"})
             continue
+
+        # 1点あたりのデータ過多チェック
+        if len(features) > max_features_per_point:
+            yield _sse("progress", {"message": f"データ過多（{len(features)}件）のためスキップ（上限{max_features_per_point}件）"})
+            continue
+
+        yield _sse("progress", {"message": f"  → {len(features)}件取得"})
 
         # 第3種農地のみ抽出・重複除去
         for feat in features:
@@ -278,7 +302,7 @@ async def _run_scan(prefecture: str, min_score: int, max_register: int, db: Sess
 
         time.sleep(0.5)
 
-    yield _sse("progress", {"message": f"スキャン完了。{len(candidates)}件の第3種農地を発見。スコア上位を登録中..."})
+    yield _sse("progress", {"message": f"スキャン完了（{request_count}リクエスト）。{len(candidates)}件の第3種農地を発見。スコア上位を登録中..."})
 
     # スコア降順でソートし上位を登録
     candidates.sort(key=lambda c: c["scores"]["overall"], reverse=True)
@@ -300,7 +324,7 @@ async def _run_scan(prefecture: str, min_score: int, max_register: int, db: Sess
 
         s = cand["scores"]
         site = models.Site(
-            name=f"【自動発見】{cand['city_name']} 農地転用候補",
+            name=f"【自動発見】{cand['address'][:20]} 農地転用候補",
             address=cand["address"],
             prefecture=cand["prefecture"],
             area=cand["area"],
@@ -326,6 +350,7 @@ async def _run_scan(prefecture: str, min_score: int, max_register: int, db: Sess
         "message": f"完了！{registered}件の候補地を登録しました（スコア{min_score}点以上）",
         "registered": registered,
         "scanned": len(candidates),
+        "wagri_requests": request_count,
     })
 
 
@@ -428,13 +453,36 @@ def scan_prefecture(
     prefecture: str,
     min_score: int = 50,
     max_register: int = 100,
+    grid_km: float = 20.0,
+    radius_m: int = 2000,
+    max_requests: int = 20,
+    max_features_per_point: int = 50,
     db: Session = Depends(get_db),
 ):
+    """
+    WAGRIリクエスト数とデータ量を制御しながら農地候補地をスキャンする。
+
+    テスト推奨設定:
+      - Step1: radius_m=500, max_requests=1 (spot相当)
+      - Step2: radius_m=500, max_requests=5, grid_km=30
+      - Step3: radius_m=2000, max_requests=20, grid_km=20 (標準)
+    """
     if prefecture not in PREF_CODE_MAP:
         raise HTTPException(status_code=400, detail=f"都道府県名が不正です: {prefecture}")
 
+    # 安全上限（誤操作防止）
+    radius_m = min(radius_m, 5000)
+    max_requests = min(max_requests, 50)
+    max_features_per_point = min(max_features_per_point, 200)
+
     async def generate():
-        async for chunk in _run_scan(prefecture, min_score, max_register, db):
+        async for chunk in _run_scan(
+            prefecture, min_score, max_register, db,
+            grid_km=grid_km,
+            radius_m=radius_m,
+            max_requests=max_requests,
+            max_features_per_point=max_features_per_point,
+        ):
             yield chunk
 
     return StreamingResponse(
