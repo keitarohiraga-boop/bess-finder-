@@ -391,6 +391,55 @@ def _polygon_area_m2(coords: list[tuple]) -> float:
     return abs(area) / 2.0
 
 
+def _score_low_voltage_candidate(lat: float, lng: float, area: float, land_type: str, prefecture: str, db: Session) -> dict:
+    """低圧BESS（49.9kW）専用スコアリング。変電所距離は使わない。"""
+
+    # 面積スコア（20m²=最低限、300m²以上=ほぼ満点）
+    if area < 20:
+        area_score = 0
+    elif area < 50:
+        area_score = 50 + (area - 20) / 30 * 20   # 50〜70
+    elif area < 100:
+        area_score = 70 + (area - 50) / 50 * 15   # 70〜85
+    elif area < 300:
+        area_score = 85 + (area - 100) / 200 * 10 # 85〜95
+    else:
+        area_score = 95
+
+    # 需給調整市場エリアスコア（JEPXスコアを流用）
+    jepx_area = PREFECTURE_TO_AREA.get(prefecture, "東京")
+    jepx = db.get(models.JepxAreaMetrics, jepx_area)
+    market_score = jepx.jepx_score if jepx else 50
+
+    # 土地種別スコア（設置しやすさ）
+    zone_score = {
+        "parking":    85,  # アスファルト済み・権利が明確
+        "vacant":     78,  # 空き地・整地が必要な場合あり
+        "brownfield": 70,  # 元工業地・土壌汚染リスクあり
+        "industrial": 65,  # 現役工業地・交渉が必要
+    }.get(land_type, 60)
+
+    # 洪水リスク（固定値70 → 将来的にハザードAPIと連携）
+    flood_score = 70
+
+    overall = round(
+        area_score   * 0.30 +
+        market_score * 0.30 +
+        zone_score   * 0.25 +
+        flood_score  * 0.15
+    )
+
+    return {
+        "overall": overall,
+        "area_score": round(area_score),
+        "market_score": round(market_score),
+        "zone_score": round(zone_score),
+        "flood_score": round(flood_score),
+        "jepx_area": jepx_area,
+        "scoring_model": "low_voltage_49kw",
+    }
+
+
 def _query_osm_candidates(lat: float, lng: float, radius_m: int = 500) -> list[dict]:
     """Overpass APIで候補地（駐車場・遊休地等）を取得。認証不要・無料。"""
     tag_lines = "\n  ".join(
@@ -734,38 +783,120 @@ def osm_spot_check(
     }
 
 
-@router.post("/osm-prefecture", summary="都道府県の変電所起点でOSM低圧BESS候補地をスキャン（SSE）")
+@router.post("/osm-prefecture", summary="都道府県グリッド方式でOSM低圧BESS候補地をスキャン（SSE）")
 def scan_osm_prefecture(
     prefecture: str,
     min_score: int = 40,
     max_register: int = 200,
     radius_m: int = 500,
     min_area_m2: int = 20,
-    max_substations: int = 50,
+    grid_km: float = 10.0,
+    max_points: int = 30,
     db: Session = Depends(get_db),
 ):
     """
-    都道府県内の変電所を起点にOverpass APIで低圧BESS候補地（駐車場・遊休地等）をスキャン。
-    WAGRIを使わないため無料で即時実行可能。
+    都道府県をグリッド分割してOverpass APIで低圧BESS候補地をスキャン。
+    変電所DBに依存しないため全国どこでも動作する。無料・即時実行可能。
 
-    - radius_m: 各変電所から何m以内を検索するか（デフォルト500m）
-    - min_area_m2: 最小面積フィルタ（デフォルト20m²=約6坪）
-    - max_substations: 対象変電所の上限数（大きい都道府県では絞り込み）
+    - radius_m: 各グリッド点からの検索半径（デフォルト500m）
+    - grid_km: グリッド間隔km（デフォルト10km）
+    - max_points: 最大グリッド点数（デフォルト30点）
     """
     if prefecture not in PREF_CODE_MAP:
         raise HTTPException(status_code=400, detail=f"都道府県名が不正です: {prefecture}")
 
     radius_m = min(radius_m, 2000)
-    max_substations = min(max_substations, 200)
+    max_points = min(max_points, 100)
 
     async def generate():
-        async for chunk in _run_osm_scan(
-            prefecture, min_score, max_register, db,
-            radius_m=radius_m,
-            min_area_m2=min_area_m2,
-            max_substations=max_substations,
-        ):
-            yield chunk
+        if prefecture not in _PREF_BOUNDS:
+            yield _sse("error", {"message": f"バウンディングボックスが未定義: {prefecture}"})
+            return
+
+        grid = _make_grid(prefecture, grid_km=grid_km)
+        actual_points = min(len(grid), max_points)
+
+        yield _sse("start", {
+            "message": f"{prefecture}のOSMスキャンを開始します（グリッド{grid_km}km / {actual_points}点 / 半径{radius_m}m）"
+        })
+
+        seen_coords: set = set()
+        candidates = []
+
+        for i, (lat, lng) in enumerate(grid[:actual_points]):
+            yield _sse("progress", {
+                "message": f"[{i+1}/{actual_points}] ({lat:.3f},{lng:.3f}) をスキャン中...",
+                "current": i + 1, "total": actual_points,
+            })
+            try:
+                hits = _query_osm_candidates(lat, lng, radius_m)
+            except Exception as e:
+                yield _sse("progress", {"message": f"  → スキップ: {str(e)[:50]}"})
+                time.sleep(0.5)
+                continue
+
+            new_hits = 0
+            for h in hits:
+                if h["area"] < min_area_m2:
+                    continue
+                key = (h["lat"], h["lng"])
+                if key in seen_coords:
+                    continue
+                seen_coords.add(key)
+                scores = _score_candidate(h["lat"], h["lng"], h["area"], prefecture, db)
+                candidates.append({**h, "prefecture": prefecture, "scores": scores})
+                new_hits += 1
+
+            yield _sse("progress", {"message": f"  → {len(hits)}件取得、新規{new_hits}件"})
+            time.sleep(0.3)
+
+        yield _sse("progress", {
+            "message": f"スキャン完了。{len(candidates)}件の候補地を発見。スコア上位を登録中..."
+        })
+
+        candidates.sort(key=lambda c: c["scores"]["overall"], reverse=True)
+        registered = 0
+
+        for cand in candidates:
+            if registered >= max_register:
+                break
+            s = cand["scores"]
+            if s["overall"] < min_score:
+                continue
+            existing = db.query(models.Site).filter(
+                models.Site.lat.between(cand["lat"] - 0.005, cand["lat"] + 0.005),
+                models.Site.lng.between(cand["lng"] - 0.005, cand["lng"] + 0.005),
+            ).all()
+            if any(haversine(cand["lat"], cand["lng"], sx.lat, sx.lng) < 300 for sx in existing):
+                continue
+            label = cand["land_label"]
+            name_hint = f"「{cand['name']}」" if cand["name"] else ""
+            db.add(models.Site(
+                name=f"【OSM発見】{label}{name_hint} {cand['prefecture']}",
+                address=cand["prefecture"],
+                prefecture=cand["prefecture"],
+                area=cand["area"],
+                landuse="osm",
+                landuse_label=label,
+                flood="none", flood_label="未確認",
+                slope=2.0,
+                substation_dist=s["subst_dist"],
+                land_price=None,
+                farm_class=None,
+                soil_risk="未確認",
+                road_width=4.0,
+                score=s["overall"],
+                lat=cand["lat"], lng=cand["lng"],
+            ))
+            registered += 1
+
+        db.commit()
+        yield _sse("done", {
+            "message": f"完了！{registered}件の低圧BESS候補地を登録しました",
+            "registered": registered,
+            "found": len(candidates),
+            "source": "OSM",
+        })
 
     return StreamingResponse(
         generate(),
