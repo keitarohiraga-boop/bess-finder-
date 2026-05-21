@@ -74,7 +74,7 @@ class SiteOut(BaseModel):
     flood_label: str
     slope: float
     substation_dist: int
-    land_price: int
+    land_price: Optional[int] = None
     farm_class: Optional[str]
     soil_risk: str
     road_width: float
