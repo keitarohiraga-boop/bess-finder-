@@ -848,7 +848,7 @@ def scan_osm_prefecture(
                 new_hits += 1
 
             yield _sse("progress", {"message": f"  → {len(hits)}件取得、新規{new_hits}件"})
-            time.sleep(0.3)
+            time.sleep(1.5)  # Overpass 429対策
 
         yield _sse("progress", {
             "message": f"スキャン完了。{len(candidates)}件の候補地を発見。スコア上位を登録中..."
