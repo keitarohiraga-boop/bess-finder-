@@ -55,9 +55,14 @@ def _score_candidate(lat: float, lng: float, area: float, prefecture: str, db: S
     jepx = db.get(models.JepxAreaMetrics, jepx_area)
     jepx_score = jepx.jepx_score if jepx else 50
 
-    # 出力制御スコア
+    # 出力制御スコア（太陽光・風力別スコアを持つ場合は最大値を採用）
     curtailment = db.get(models.CurtailmentData, jepx_area)
-    ctrl_score = curtailment.curtailment_score if curtailment else 30
+    if curtailment:
+        solar_ctrl = curtailment.solar_score or curtailment.curtailment_score or 30
+        wind_ctrl  = curtailment.wind_score  or 0
+        ctrl_score = max(solar_ctrl, wind_ctrl)
+    else:
+        ctrl_score = 30
 
     # 立地スコア
     grid_s = max(0, 100 - subst_dist / 50)
@@ -67,7 +72,7 @@ def _score_candidate(lat: float, lng: float, area: float, prefecture: str, db: S
     # 収益スコア
     revenue_score = round(jepx_score * 0.6 + ctrl_score * 0.4)
 
-    # 農地は第3種＝規制リスク低
+    # リスクスコア（デフォルト: 中程度）
     risk_score = 75
 
     # 需要スコア（都道府県別日射量）
@@ -86,6 +91,8 @@ def _score_candidate(lat: float, lng: float, area: float, prefecture: str, db: S
         "subst_dist": subst_dist,
         "subst_name": subst_name,
         "jepx_area": jepx_area,
+        "solar_ctrl_score": solar_ctrl if curtailment else None,
+        "wind_ctrl_score": wind_ctrl if curtailment else None,
     }
 
 
