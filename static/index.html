@@ -3970,12 +3970,20 @@ function renderSimulator(site) {
       <div style="padding:10px 14px">
         <div class="sim-input-row">
           <label>蓄電池容量 <span id="simCapLabel">${preset.cap_mwh} MWh</span></label>
-          <input type="range" id="simCap" min="1" max="${Math.max(preset.cap_mwh * 2, 20)}" step="1" value="${preset.cap_mwh}"
+          <input type="range" id="simCap"
+            min="${bessType==='low' ? 0.01 : 1}"
+            max="${bessType==='low' ? 0.2  : Math.max(preset.cap_mwh * 2, 20)}"
+            step="${bessType==='low' ? 0.01 : 1}"
+            value="${preset.cap_mwh}"
             style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
         </div>
         <div class="sim-input-row">
-          <label>出力 <span id="simPowerLabel">${preset.power_mw} MW</span></label>
-          <input type="range" id="simPower" min="0.5" max="${Math.max(preset.power_mw * 2, 10)}" step="0.5" value="${preset.power_mw}"
+          <label>出力 <span id="simPowerLabel">${bessType==='low' ? Math.round(preset.power_mw*1000)+'kW' : preset.power_mw+' MW'}</span></label>
+          <input type="range" id="simPower"
+            min="${bessType==='low' ? 0.010 : 0.5}"
+            max="${bessType==='low' ? 0.0499: Math.max(preset.power_mw * 2, 10)}"
+            step="${bessType==='low' ? 0.001 : 0.5}"
+            value="${preset.power_mw}"
             style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
         </div>
         <div class="sim-input-row">
@@ -4185,8 +4193,8 @@ function calcSim(siteId, skipLandUpdate = false) {
   const unit_man = parseFloat(document.getElementById("simUnit").value);
   const year     = parseInt(document.getElementById("simYear").value);
 
-  document.getElementById("simCapLabel").textContent   = `${cap_mwh} MWh`;
-  document.getElementById("simPowerLabel").textContent = `${power_mw} MW`;
+  document.getElementById("simCapLabel").textContent   = bessType === "low" ? `${Math.round(cap_mwh*1000)} kWh` : `${cap_mwh} MWh`;
+  document.getElementById("simPowerLabel").textContent = bessType === "low" ? `${Math.round(power_mw*1000)} kW`  : `${power_mw} MW`;
   document.getElementById("simUnitLabel").textContent  = `${unit_man} 万円/kWh`;
   document.getElementById("simYearLabel").textContent  = `${year}年度`;
   const durationH = power_mw > 0 ? (cap_mwh / power_mw).toFixed(1) : "－";
