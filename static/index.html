@@ -3888,6 +3888,26 @@ function getCapacityPrice(area, year) {
 }
 
 function calcOptimalPreset(site) {
+  // 低圧（49.9kW）モード：配電線接続・出力上限49.9kW固定
+  if (bessType === "low") {
+    const power_kw  = 49.9;
+    const power_mw  = power_kw / 1000;          // 0.0499 MW
+    const cap_mwh   = power_mw * 2;             // 2時間放電 = 0.1 MWh (≒99.8kWh)
+    const unit_price = 25;                       // 小規模・量産品 25万円/kWh
+    return {
+      cap_mwh:   Math.round(cap_mwh * 100) / 100,  // 0.1
+      power_mw:  Math.round(power_mw * 1000) / 1000,
+      unit_price,
+      rationale: [
+        `出力: 49.9kW（低圧・配電線接続の上限）`,
+        `容量: 49.9kW × 2h = 99.8kWh ≒ 0.1MWh`,
+        `用途: ピークカット・需給調整市場（三次調整力①）`,
+        `単価: ${unit_price}万円/kWh（小規模・量産品）`,
+      ],
+    };
+  }
+
+  // 高圧（500kW+）モード：変電所距離・土地面積から最適規模を算出
   // ① 土地面積から最大容量（1MWh/80㎡）
   const cap_from_area = site.area / 80;
 
