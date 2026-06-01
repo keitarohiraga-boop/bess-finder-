@@ -456,7 +456,7 @@ def osm_spot_check(
     }
 
 
-@router.post("/osm-prefecture", summary="都道府県グリッド方式でOSM低圧BESS候補地をスキャン（SSE）")
+@router.post("/osm-prefecture", summary="都道府県グリッド方式でOSM BESS候補地をスキャン（SSE）")
 def scan_osm_prefecture(
     prefecture: str,
     min_score: int = 40,
@@ -465,12 +465,14 @@ def scan_osm_prefecture(
     min_area_m2: int = 20,
     grid_km: float = 10.0,
     max_points: int = 30,
+    bess_type: str = "low",   # "low"=49.9kW配電線接続 / "high"=500kW+変電所接続
     db: Session = Depends(get_db),
 ):
     """
-    都道府県をグリッド分割してOverpass APIで低圧BESS候補地をスキャン。
-    変電所DBに依存しないため全国どこでも動作する。無料・即時実行可能。
+    都道府県をグリッド分割してOverpass APIでBESS候補地をスキャン。
 
+    - bess_type="low"  : 低圧49.9kW。面積・需要・土地種別でスコアリング。変電所距離は不使用
+    - bess_type="high" : 高圧500kW+。変電所距離・大面積を重視したスコアリング
     - radius_m: 各グリッド点からの検索半径（デフォルト500m）
     - grid_km: グリッド間隔km（デフォルト10km）
     - max_points: 最大グリッド点数（デフォルト30点）
@@ -516,13 +518,19 @@ def scan_osm_prefecture(
                 if key in seen_coords:
                     continue
                 seen_coords.add(key)
-                scores = _score_candidate(h["lat"], h["lng"], h["area"], prefecture, db)
+                if bess_type == "low":
+                    scores = _score_low_voltage_candidate(
+                        h["lat"], h["lng"], h["area"], h["land_type"], prefecture, db
+                    )
+                else:
+                    scores = _score_candidate(h["lat"], h["lng"], h["area"], prefecture, db)
                 candidates.append({**h, "prefecture": prefecture, "scores": scores})
                 new_hits += 1
 
             yield _sse("progress", {"message": f"  → {len(hits)}件取得、新規{new_hits}件"})
             time.sleep(1.5)  # Overpass 429対策
 
+        type_label = "低圧49.9kW" if bess_type == "low" else "高圧500kW+"
         yield _sse("progress", {
             "message": f"スキャン完了。{len(candidates)}件の候補地を発見。スコア上位を登録中..."
         })
@@ -544,8 +552,10 @@ def scan_osm_prefecture(
                 continue
             label = cand["land_label"]
             name_hint = f"「{cand['name']}」" if cand["name"] else ""
+            # 低圧は変電所距離が不要なので0（配電線接続・距離不問）、高圧は実距離を使う
+            subst_dist = 0 if bess_type == "low" else s.get("subst_dist", 99999)
             db.add(models.Site(
-                name=f"【OSM発見】{label}{name_hint} {cand['prefecture']}",
+                name=f"【OSM{type_label}】{label}{name_hint} {cand['prefecture']}",
                 address=cand["prefecture"],
                 prefecture=cand["prefecture"],
                 area=cand["area"],
@@ -553,7 +563,7 @@ def scan_osm_prefecture(
                 landuse_label=label,
                 flood="none", flood_label="未確認",
                 slope=2.0,
-                substation_dist=s["subst_dist"],
+                substation_dist=subst_dist,
                 land_price=None,
                 farm_class=None,
                 soil_risk="未確認",
@@ -565,10 +575,11 @@ def scan_osm_prefecture(
 
         db.commit()
         yield _sse("done", {
-            "message": f"完了！{registered}件の低圧BESS候補地を登録しました",
+            "message": f"完了！{registered}件の{type_label}BESS候補地を登録しました",
             "registered": registered,
             "found": len(candidates),
             "source": "OSM",
+            "bess_type": bess_type,
         })
 
     return StreamingResponse(

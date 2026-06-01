@@ -701,6 +701,16 @@
       </div>
       <div id="filterPanelContent">
 
+      <!-- BESSタイプ切替 -->
+      <div class="filter-group" style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px 12px;margin-bottom:4px">
+        <div class="filter-label" style="margin-bottom:8px;color:#e2e8f0">⚡ BESSタイプ</div>
+        <div class="toggle-group">
+          <button id="bessTypeLowBtn" class="toggle-btn active" onclick="setBessType('low')">低圧（49.9kW）</button>
+          <button id="bessTypeHighBtn" class="toggle-btn" onclick="setBessType('high')">高圧（500kW+）</button>
+        </div>
+        <div id="bessTypeNote" style="font-size:10px;color:#64748b;margin-top:6px;line-height:1.5">配電線に接続。変電所距離は立地条件に含みません</div>
+      </div>
+
       <div class="filter-group">
         <div class="filter-label"><span class="icon">🌾</span> 農地法・地目 <span class="tag">農地ナビ</span></div>
         <div class="toggle-group">
@@ -732,12 +742,14 @@
         </div>
       </div>
 
+      <div id="substationFilterGroup" style="display:none">
       <div class="filter-group">
         <div class="filter-label"><span class="icon">⚡</span> 変電所からの距離 <span class="tag">系統情報</span></div>
         <div class="range-wrap">
           <input type="range" id="substationRange" min="500" max="5000" step="100" value="3000" />
           <div class="range-val" id="substationVal">3000m以内</div>
         </div>
+      </div>
       </div>
 
       <div class="filter-group">
@@ -1253,6 +1265,25 @@ function normalizeApiSite(s) {
 // ===== フォールバック用空配列（USE_API=true が標準。APIエラー時は空表示） =====
 const SITES = [];
 
+// ===== BESSタイプ（低圧 / 高圧） =====
+let bessType = "low"; // "low"=49.9kW配電線接続 / "high"=500kW+変電所接続
+
+function setBessType(type) {
+  bessType = type;
+  document.getElementById("bessTypeLowBtn").classList.toggle("active", type === "low");
+  document.getElementById("bessTypeHighBtn").classList.toggle("active", type === "high");
+  const subGroup = document.getElementById("substationFilterGroup");
+  const note = document.getElementById("bessTypeNote");
+  if (type === "low") {
+    subGroup.style.display = "none";
+    note.textContent = "配電線に接続。変電所距離は立地条件に含みません";
+  } else {
+    subGroup.style.display = "";
+    note.textContent = "変電所・高圧線への接続が必要。距離がコストに直結します";
+  }
+  renderAll();
+}
+
 // ===== フィルター状態 =====
 let filters = {
   landuse: new Set(["osm", "industrial", "quasi-industrial", "unzoned"]),  // 用途地域
@@ -1575,7 +1606,7 @@ async function renderAll() {
     filters.landuse.forEach(v => params.append("landuse", v));
       filters.farm.forEach(v => params.append("farm", v));
     filters.flood.forEach(v => params.append("flood", v));
-    params.set("substation_max", filters.substationMax);
+    params.set("substation_max", bessType === "low" ? 999999 : filters.substationMax);
     params.set("area_min", filters.areaMin);
     params.set("slope_max", filters.slopeMax);
 
@@ -2954,6 +2985,21 @@ function openScanPanel() {
         </div>
         <button onclick="document.getElementById('scanOverlay').remove()" style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
       </div>
+      <!-- BESSタイプ -->
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px 14px;margin-bottom:14px">
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">BESSタイプ（スコアリングに影響）</div>
+        <div style="display:flex;gap:8px">
+          <button id="scanTypeLow" onclick="setScanType('low')"
+            style="flex:1;padding:7px;background:#0ea5e9;border:1px solid #0ea5e9;color:#fff;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
+            低圧（49.9kW）
+          </button>
+          <button id="scanTypeHigh" onclick="setScanType('high')"
+            style="flex:1;padding:7px;background:#0f172a;border:1px solid #334155;color:#64748b;border-radius:6px;font-size:12px;cursor:pointer">
+            高圧（500kW+）
+          </button>
+        </div>
+        <div id="scanTypeNote" style="font-size:10px;color:#64748b;margin-top:6px">面積・需要・土地種別で評価。変電所距離は使いません</div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
         <div>
           <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">都道府県</label>
@@ -2986,6 +3032,23 @@ function openScanPanel() {
 }
 
 let _scanRunning = false;
+let _scanBessType = "low";
+
+function setScanType(type) {
+  _scanBessType = type;
+  const lowBtn  = document.getElementById("scanTypeLow");
+  const highBtn = document.getElementById("scanTypeHigh");
+  const note    = document.getElementById("scanTypeNote");
+  if (type === "low") {
+    lowBtn.style.background  = "#0ea5e9"; lowBtn.style.borderColor  = "#0ea5e9"; lowBtn.style.color  = "#fff";
+    highBtn.style.background = "#0f172a"; highBtn.style.borderColor = "#334155"; highBtn.style.color = "#64748b";
+    note.textContent = "面積・需要・土地種別で評価。変電所距離は使いません";
+  } else {
+    highBtn.style.background = "#0ea5e9"; highBtn.style.borderColor = "#0ea5e9"; highBtn.style.color = "#fff";
+    lowBtn.style.background  = "#0f172a"; lowBtn.style.borderColor  = "#334155"; lowBtn.style.color  = "#64748b";
+    note.textContent = "変電所距離・大面積を重視。高圧系統への接続前提で評価";
+  }
+}
 
 async function startScan() {
   if (_scanRunning) return;
@@ -3007,7 +3070,7 @@ async function startScan() {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/scan/osm-prefecture?prefecture=${encodeURIComponent(pref)}&min_score=${minScore}&max_register=${maxReg}`, {
+    const res = await fetch(`${API_BASE}/scan/osm-prefecture?prefecture=${encodeURIComponent(pref)}&min_score=${minScore}&max_register=${maxReg}&bess_type=${_scanBessType}`, {
       method: "POST",
     });
     if (!res.ok) {
