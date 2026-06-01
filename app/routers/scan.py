@@ -116,10 +116,10 @@ def _add_check_digit(code5: str) -> str:
     return code5 + str(check)
 
 
-def _wagri_by_distance(lat: float, lng: float, distance_m: int = 8000) -> list[dict]:
+def _wagri_by_distance(lat: float, lng: float, distance_m: int = 8000, max_features: int = 50) -> list[dict]:
     """WAGRIのSearchByDistanceで農地ピン情報を取得（既存の動作確認済みエンドポイント）"""
     from app.routers.wagri import _search_farmland
-    return _search_farmland(lat, lng, distance_m)
+    return _search_farmland(lat, lng, distance_m, max_features)
 
 
 def _score_candidate(lat: float, lng: float, area: float, prefecture: str, db: Session) -> dict:
@@ -266,7 +266,7 @@ async def _run_scan(
         })
 
         try:
-            features = _wagri_by_distance(lat, lng, radius_m)
+            features = _wagri_by_distance(lat, lng, radius_m, max_features_per_point)
             request_count += 1
         except Exception as e:
             yield _sse("progress", {"message": f"スキップ: {str(e)[:40]}"})
@@ -637,7 +637,7 @@ def spot_check(
 
     # WAGRI呼び出し（1リクエスト）
     try:
-        features = _wagri_by_distance(lat, lng, radius_m)
+        features = _wagri_by_distance(lat, lng, radius_m, max_features=10)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"WAGRI呼び出し失敗: {str(e)}")
 

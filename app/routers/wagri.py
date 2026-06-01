@@ -69,13 +69,14 @@ def _get_token() -> str:
 
 # ===== 農地データ取得 =====
 
-def _search_farmland(lat: float, lng: float, distance_m: int = 100) -> list[dict]:
+def _search_farmland(lat: float, lng: float, distance_m: int = 100, max_features: int = 50) -> list[dict]:
     """指定座標から distance_m 以内の農地ピン情報を取得"""
     token = _get_token()
     params = urllib.parse.urlencode({
         "Latitude":  lat,
         "Longitude": lng,
         "Distance":  distance_m,
+        "$top":      max_features,
     })
     url = f"{SEARCH_URL}?{params}"
     req = urllib.request.Request(
