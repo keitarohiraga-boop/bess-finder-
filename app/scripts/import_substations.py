@@ -170,7 +170,11 @@ def run():
             tags = elem.get("tags", {})
             name = tags.get("name") or tags.get("name:ja") or "変電所"
             voltage = tags.get("voltage", "")
-            voltage_class = "特別高圧" if voltage and int(voltage.split(";")[0]) >= 66000 else "高圧" if voltage else "不明"
+            try:
+                v = int(str(voltage).split(";")[0].strip()) if voltage else 0
+                voltage_class = "特別高圧" if v >= 66000 else "高圧" if v > 0 else "不明"
+            except (ValueError, AttributeError):
+                voltage_class = "不明"
 
             pref = prefecture_from_coords(lat, lng)
 
