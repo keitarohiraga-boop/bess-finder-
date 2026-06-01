@@ -3031,9 +3031,12 @@ async function startScan() {
           else if (ev.event === "progress") addLog(`・${ev.message}`, "#64748b");
           else if (ev.event === "done") {
             addLog(`✅ ${ev.message}`, "#4ade80");
-            btn.textContent = "✅ 完了";
-            btn.style.background = "#14532d";
-            renderAll(); // 地図・リストを更新
+            addLog(`地図に反映しました。✕で閉じてください。`, "#38bdf8");
+            btn.textContent = "✕ 閉じる";
+            btn.style.background = "#0ea5e9";
+            btn.disabled = false;
+            btn.onclick = () => document.getElementById("scanOverlay").remove();
+            renderAll();
           }
           else if (ev.event === "error") addLog(`❌ ${ev.message}`, "#f87171");
         } catch(e) {}
