@@ -756,6 +756,142 @@ def scan_prefecture(
     )
 
 
+# ===== 筆ポリゴンスキャン =====
+
+@router.post("/fude-prefecture", summary="筆ポリゴンDBで都道府県スキャン（WAGRIリクエスト消費ゼロ・SSE）")
+def scan_fude_prefecture(
+    prefecture: str,
+    min_score: int = 50,
+    max_register: int = 100,
+    grid_km: float = 20.0,
+    radius_m: int = 2000,
+    max_points: int = 50,
+    db: Session = Depends(get_db),
+):
+    """
+    筆ポリゴンローカルDBを使ってWAGRIと同等の農地候補地スキャンを実行。
+    WAGRIのAPIリクエストを一切消費しない。事前にimport_fude_polygons.pyの実行が必要。
+    """
+    from app.routers.fude import search_by_distance
+    from app.routers.wagri import _determine_farm_class
+
+    if prefecture not in PREF_CODE_MAP:
+        raise HTTPException(status_code=400, detail=f"都道府県名が不正です: {prefecture}")
+    if prefecture not in _PREF_BOUNDS:
+        raise HTTPException(status_code=400, detail=f"バウンディングボックスが未定義: {prefecture}")
+
+    # 筆ポリゴンデータの有無チェック
+    fude_count = db.query(models.FudeField).filter(
+        models.FudeField.prefecture == prefecture
+    ).count()
+    if fude_count == 0:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{prefecture}の筆ポリゴンデータが未インポートです。import_fude_polygons.py を実行してください。"
+        )
+
+    max_points = min(max_points, 200)
+
+    async def generate():
+        grid = _make_grid(prefecture, grid_km=grid_km)
+        actual = min(len(grid), max_points)
+
+        yield _sse("start", {
+            "message": f"{prefecture}の筆ポリゴンスキャン開始（{actual}点 / 半径{radius_m}m / WAGRIリクエスト0件）",
+            "fude_count": fude_count,
+        })
+        yield _sse("progress", {"message": f"{actual}格子点を処理", "total": actual})
+
+        seen_coords: set = set()
+        candidates = []
+
+        for i, (lat, lng) in enumerate(grid[:actual]):
+            yield _sse("progress", {
+                "message": f"[{i+1}/{actual}] ({lat:.3f},{lng:.3f}) を検索中...",
+                "current": i + 1, "total": actual,
+            })
+
+            features = search_by_distance(lat, lng, radius_m, db, max_features=100)
+            if not features:
+                continue
+
+            yield _sse("progress", {"message": f"  → {len(features)}件取得"})
+
+            for feat in features:
+                fc = _determine_farm_class([feat])
+                if fc != "class3-farm":
+                    continue
+                if feat.get("Area", 0) < 3000:
+                    continue
+                flat = round(feat.get("Latitude", 0), 4)
+                flng = round(feat.get("Longitude", 0), 4)
+                key = (flat, flng)
+                if key in seen_coords:
+                    continue
+                seen_coords.add(key)
+                area = feat.get("Area", 5000)
+                scores = _score_candidate(flat, flng, area, prefecture, db)
+                candidates.append({
+                    "lat": flat, "lng": flng, "area": area,
+                    "address": prefecture,
+                    "prefecture": prefecture,
+                    "scores": scores,
+                    "source": "fude_polygon",
+                })
+
+        yield _sse("progress", {
+            "message": f"スキャン完了。{len(candidates)}件の第3種農地を発見。登録中..."
+        })
+
+        candidates.sort(key=lambda c: c["scores"]["overall"], reverse=True)
+        registered = 0
+
+        for cand in candidates:
+            if registered >= max_register:
+                break
+            if cand["scores"]["overall"] < min_score:
+                continue
+            existing = db.query(models.Site).filter(
+                models.Site.lat.between(cand["lat"] - 0.005, cand["lat"] + 0.005),
+                models.Site.lng.between(cand["lng"] - 0.005, cand["lng"] + 0.005),
+            ).all()
+            if any(haversine(cand["lat"], cand["lng"], s.lat, s.lng) < 300 for s in existing):
+                continue
+            db.add(models.Site(
+                name=f"【筆ポリゴン発見】農地転用候補 {cand['prefecture']}",
+                address=cand["prefecture"],
+                prefecture=cand["prefecture"],
+                area=cand["area"],
+                landuse="fude",
+                landuse_label="農地（筆ポリゴン）",
+                flood="none", flood_label="未確認",
+                slope=2.0,
+                substation_dist=cand["scores"]["subst_dist"],
+                land_price=None,
+                farm_class="class3-farm",
+                soil_risk="未確認",
+                road_width=4.0,
+                score=cand["scores"]["overall"],
+                lat=cand["lat"], lng=cand["lng"],
+            ))
+            registered += 1
+
+        db.commit()
+        yield _sse("done", {
+            "message": f"完了！{registered}件を登録（WAGRIリクエスト消費: 0件）",
+            "registered": registered,
+            "scanned": len(candidates),
+            "wagri_requests": 0,
+            "source": "fude_polygon",
+        })
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # ===== OSMエンドポイント =====
 
 @router.get("/osm-spot-check", summary="OSM Overpass APIの動作確認（1座標・無料）")

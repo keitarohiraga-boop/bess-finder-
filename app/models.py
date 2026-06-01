@@ -153,6 +153,21 @@ class AgentUsageLog(Base):
     estimated_usd  = Column(Float, default=0.0)       # 概算コスト（USD）
 
 
+class FudeField(Base):
+    """農林水産省 筆ポリゴン — WAGRIの完全代替（ローカルDB・無料・API呼び出しなし）"""
+    __tablename__ = "fude_fields"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    prefecture  = Column(String, index=True)
+    lat         = Column(Float, nullable=False)   # ポリゴン重心
+    lng         = Column(Float, nullable=False)
+    area_m2     = Column(Float)
+    agri_code   = Column(String)   # "1"=農用地区域, "2"=農振内白地, "3"=農振外
+    agri_label  = Column(String)
+    land_type   = Column(String)   # "田", "畑", "採草放牧地" etc.
+    city_code   = Column(String, nullable=True)   # 国土数値情報で後補完予定
+
+
 class WagriRequestLog(Base):
     """WAGRI API リクエスト使用量ログ（試用版月100件上限の管理用）"""
     __tablename__ = "wagri_request_log"
