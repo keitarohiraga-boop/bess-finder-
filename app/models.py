@@ -153,6 +153,29 @@ class AgentUsageLog(Base):
     estimated_usd  = Column(Float, default=0.0)       # 概算コスト（USD）
 
 
+class LandUseMesh(Base):
+    """
+    国土数値情報 土地利用細分メッシュ（L03-b）1kmセル集計版
+    100m単位を1kmに集計。WAGRI・API不要で農地・荒地密度を把握するための基盤データ。
+    """
+    __tablename__ = "land_use_mesh"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    mesh_code_1km = Column(String(8), index=True)  # 8桁 = 3次メッシュ（約1km）
+    lat           = Column(Float, nullable=False)   # 1kmセル重心
+    lng           = Column(Float, nullable=False)
+    prefecture    = Column(String, index=True)
+    # 農地・未利用地系セル数（100m単位）
+    paddy_count   = Column(Integer, default=0)  # 0100: 田
+    agri_count    = Column(Integer, default=0)  # 0200: その他農用地（畑・樹園地等）
+    waste_count   = Column(Integer, default=0)  # 0400: 荒地
+    other_count   = Column(Integer, default=0)  # 0800: その他用地（未利用地含む）
+    golf_count    = Column(Integer, default=0)  # 1200: ゴルフ場
+    total_count   = Column(Integer, default=0)  # 有効セル総数
+    # 集計値
+    bess_score    = Column(Integer, default=0)  # (paddy+agri+waste+other+golf)/total×100
+
+
 class FudeField(Base):
     """農林水産省 筆ポリゴン — WAGRIの完全代替（ローカルDB・無料・API呼び出しなし）"""
     __tablename__ = "fude_fields"
