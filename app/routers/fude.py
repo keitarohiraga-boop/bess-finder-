@@ -1,20 +1,50 @@
 """
 筆ポリゴン（農地ナビ）ローカルDB ルーター
-農林水産省データをローカルDBに取り込み、WAGRIのAPI呼び出しを置き換える。
+農林水産省データをローカルDBに取り込み、農地区画の位置・面積情報を提供する。
 """
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models
 from app.utils import haversine
-from app.routers.wagri import _determine_farm_class, _classify_by_wagri_codes
+
+
+def _classify_by_wagri_codes(agri_code: str, city_code: str) -> str:
+    """農振区分コードと都市計画法区分コードから農地3種区分を判定"""
+    if agri_code == "1":
+        return "class1-farm"
+    if city_code == "1":
+        return "class3-farm"
+    if agri_code == "2":
+        return "class2-farm"
+    if agri_code == "3":
+        return "class2-farm" if city_code == "2" else "class3-farm"
+    return "class2-farm"
+
+
+def _determine_farm_class(features: list[dict]) -> Optional[str]:
+    """フィーチャーリストから最も規制の強い農地クラスを返す"""
+    if not features:
+        return None
+    priority = {"class1-farm": 3, "class2-farm": 2, "class3-farm": 1}
+    detected = None
+    for feat in features:
+        props = feat.get("properties", feat) if isinstance(feat, dict) else {}
+        agri = str(props.get("AgriculturalVibrationMethodClassificationCode", "")).strip()
+        city = str(props.get("CityPlanningActClassificationCode", "")).strip()
+        fc = _classify_by_wagri_codes(agri, city)
+        if detected is None or priority.get(fc, 0) > priority.get(detected, 0):
+            detected = fc
+    return detected or "class3-farm"
 
 router = APIRouter(prefix="/fude", tags=["fude"])
 
 
-def _fude_to_wagri_feature(field: models.FudeField) -> dict:
-    """FudeFieldをWAGRIのfeatureフォーマットに変換（既存パイプライン互換）"""
+def _fude_to_feature(field: models.FudeField) -> dict:
+    """FudeFieldを農地クラス判定用フォーマットに変換"""
     return {
         "Latitude":  field.lat,
         "Longitude": field.lng,
@@ -42,7 +72,7 @@ def search_by_distance(lat: float, lng: float, distance_m: int, db: Session,
 
     # 正確な距離でフィルタ → WAGRIフォーマットに変換
     features = [
-        _fude_to_wagri_feature(f)
+        _fude_to_feature(f)
         for f in candidates
         if haversine(lat, lng, f.lat, f.lng) <= distance_m
     ]
@@ -83,8 +113,7 @@ def check_fude(
     db: Session = Depends(get_db),
 ):
     """
-    wagri/check と同じインターフェース。
-    インポート済みならWAGRIリクエストを消費せず農地クラスを返す。
+    ローカルDBから農地クラスを判定。APIリクエスト消費なし。
     """
     features = search_by_distance(lat, lng, distance_m, db)
 
@@ -112,7 +141,6 @@ def check_fude(
         "features_count": len(features),
         "raw_sample": features[0] if features else None,
         "source": "fude_polygon_local",
-        "wagri_requests_used": 0,
     }
 
 
@@ -149,5 +177,4 @@ def scan_preview(
         "class_breakdown": class_counts,
         "class3_fields": sorted(class3_fields, key=lambda x: x["area_m2"], reverse=True)[:10],
         "source": "fude_polygon_local",
-        "wagri_requests_used": 0,
     }

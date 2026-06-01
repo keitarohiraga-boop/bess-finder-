@@ -189,16 +189,3 @@ class FudeField(Base):
     agri_label  = Column(String)
     land_type   = Column(String)   # "田", "畑", "採草放牧地" etc.
     city_code   = Column(String, nullable=True)   # 国土数値情報で後補完予定
-
-
-class WagriRequestLog(Base):
-    """WAGRI API リクエスト使用量ログ（試用版月100件上限の管理用）"""
-    __tablename__ = "wagri_request_log"
-
-    id             = Column(Integer, primary_key=True, index=True)
-    called_at      = Column(String, nullable=False)   # ISO8601 UTC
-    endpoint       = Column(String, default="SearchByDistance")
-    lat            = Column(Float, nullable=True)
-    lng            = Column(Float, nullable=True)
-    distance_m     = Column(Integer, nullable=True)
-    features_count = Column(Integer, default=0)       # 実際に受信したフィーチャー数（切り詰め前）
