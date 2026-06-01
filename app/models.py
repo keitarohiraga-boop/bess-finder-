@@ -151,3 +151,16 @@ class AgentUsageLog(Base):
     input_tokens   = Column(Integer, default=0)
     output_tokens  = Column(Integer, default=0)
     estimated_usd  = Column(Float, default=0.0)       # 概算コスト（USD）
+
+
+class WagriRequestLog(Base):
+    """WAGRI API リクエスト使用量ログ（試用版月100件上限の管理用）"""
+    __tablename__ = "wagri_request_log"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    called_at      = Column(String, nullable=False)   # ISO8601 UTC
+    endpoint       = Column(String, default="SearchByDistance")
+    lat            = Column(Float, nullable=True)
+    lng            = Column(Float, nullable=True)
+    distance_m     = Column(Integer, nullable=True)
+    features_count = Column(Integer, default=0)       # 実際に受信したフィーチャー数（切り詰め前）

@@ -19,28 +19,32 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 JAPAN_BBOX = "20,122,46,154"
 
 OVERPASS_QUERY = f"""
-[out:json][timeout:120][bbox:{JAPAN_BBOX}];
+[out:json][timeout:180][bbox:{JAPAN_BBOX}];
 (
   node["power"="substation"];
   node["power"="sub_station"];
+  way["power"="substation"];
+  way["power"="sub_station"];
+  relation["power"="substation"];
+  relation["power"="sub_station"];
 );
-out body;
+out center;
 """
 
 
 def fetch_substations() -> list[dict]:
-    print("OpenStreetMap から変電所データを取得中（〜1分かかります）...")
+    print("OpenStreetMap から変電所データを取得中（node/way/relation、〜2分かかります）...")
     data = urllib.parse.urlencode({"data": OVERPASS_QUERY}).encode()
     req = urllib.request.Request(
         OVERPASS_URL,
         data=data,
-        headers={"User-Agent": "BESS-Site-Finder/1.0", "Content-Type": "application/x-www-form-urlencoded"},
+        headers={"User-Agent": "BSRI-BESSFinder/1.0 (bess-site-finder; keitaro.hiraga@natural-born.jp)", "Content-Type": "application/x-www-form-urlencoded"},
     )
-    with urllib.request.urlopen(req, timeout=150) as resp:
+    with urllib.request.urlopen(req, timeout=240) as resp:
         result = json.loads(resp.read())
 
     elements = result.get("elements", [])
-    print(f"{len(elements)} 件取得")
+    print(f"{len(elements)} 件取得（node/way/relation合計）")
     return elements
 
 
@@ -150,8 +154,14 @@ def run():
 
         count = 0
         for elem in elements:
-            lat = elem.get("lat")
-            lng = elem.get("lon")
+            # node は lat/lon 直接、way/relation は center キー内
+            if elem.get("type") == "node":
+                lat = elem.get("lat")
+                lng = elem.get("lon")
+            else:
+                center = elem.get("center", {})
+                lat = center.get("lat")
+                lng = center.get("lon")
             if not lat or not lng:
                 continue
             if not (20 <= lat <= 46 and 122 <= lng <= 154):

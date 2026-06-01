@@ -10,12 +10,13 @@ import time
 import urllib.parse
 import urllib.request
 import urllib.error
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app import models
 
 router = APIRouter(prefix="/wagri", tags=["wagri"])
@@ -102,7 +103,23 @@ def _search_farmland(lat: float, lng: float, distance_m: int = 100, max_features
         features = []
 
     # WAGRIは$topを無視するためPython側で切り詰め
-    return features[:max_features]
+    total_received = len(features)
+    truncated = features[:max_features]
+
+    # リクエストをDBに記録（セッション横断で使用量追跡）
+    try:
+        log_db = SessionLocal()
+        log_db.add(models.WagriRequestLog(
+            called_at=datetime.now(timezone.utc).isoformat(),
+            lat=lat, lng=lng, distance_m=distance_m,
+            features_count=total_received,
+        ))
+        log_db.commit()
+        log_db.close()
+    except Exception:
+        pass  # ログ失敗はサイレントに無視
+
+    return truncated
 
 
 def _determine_farm_class(features: list[dict]) -> Optional[str]:
@@ -275,4 +292,38 @@ def status():
         "configured": bool(CLIENT_ID and CLIENT_SECRET),
         "client_id_set": bool(CLIENT_ID),
         "secret_set": bool(CLIENT_SECRET),
+    }
+
+
+@router.get("/usage", summary="WAGRI APIリクエスト使用量（今月・累計）")
+def usage(db: Session = Depends(get_db)):
+    """試用版の月100リクエスト上限に対する消費状況を返す。毎月1日にリセット。"""
+    now = datetime.now(timezone.utc)
+    jst = now + timedelta(hours=9)
+    month_start = f"{jst.year}-{jst.month:02d}-01T00:00:00+09:00"
+
+    # 今月分（JST月初以降）
+    all_logs = db.query(models.WagriRequestLog).all()
+    month_start_dt = datetime(jst.year, jst.month, 1, tzinfo=timezone(timedelta(hours=9)))
+    monthly = [l for l in all_logs if datetime.fromisoformat(l.called_at) >= month_start_dt.astimezone(timezone.utc)]
+
+    monthly_count = len(monthly)
+    remaining = max(0, 100 - monthly_count)
+
+    return {
+        "month": f"{jst.year}-{jst.month:02d}",
+        "monthly_requests": monthly_count,
+        "monthly_limit": 100,
+        "remaining": remaining,
+        "usage_pct": round(monthly_count / 100 * 100, 1),
+        "total_all_time": len(all_logs),
+        "recent_10": [
+            {
+                "called_at": l.called_at,
+                "lat": l.lat, "lng": l.lng,
+                "distance_m": l.distance_m,
+                "features_count": l.features_count,
+            }
+            for l in sorted(all_logs, key=lambda x: x.called_at, reverse=True)[:10]
+        ],
     }
