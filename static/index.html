@@ -3890,17 +3890,17 @@ function getCapacityPrice(area, year) {
 function calcOptimalPreset(site) {
   // 低圧（49.9kW）モード：配電線接続・出力上限49.9kW固定
   if (bessType === "low") {
-    const power_kw  = 49.9;
-    const power_mw  = power_kw / 1000;          // 0.0499 MW
-    const cap_mwh   = power_mw * 2;             // 2時間放電 = 0.1 MWh (≒99.8kWh)
+    const cap_kwh   = 49.9;                      // 容量 49.9kWh（低圧上限）
+    const cap_mwh   = cap_kwh / 1000;            // 0.0499 MWh
+    const power_mw  = cap_mwh / 2;              // 2時間放電 → 出力25kW = 0.025MW
     const unit_price = 28;                       // 中国製最安ライン 28万円/kWh（国産主要品34万円/kWh）
     return {
-      cap_mwh:   Math.round(cap_mwh * 100) / 100,  // 0.1
-      power_mw:  Math.round(power_mw * 1000) / 1000,
+      cap_mwh:   Math.round(cap_mwh * 1000) / 1000,  // 0.05
+      power_mw:  Math.round(power_mw * 1000) / 1000, // 0.025
       unit_price,
       rationale: [
-        `出力: 49.9kW（低圧・配電線接続の上限）`,
-        `容量: 49.9kW × 2h = 99.8kWh ≒ 0.1MWh`,
+        `容量: 49.9kWh（低圧・系統接続の上限）`,
+        `出力: 49.9kWh ÷ 2h = 約25kW（1日2サイクル運用）`,
         `用途: ピークカット・需給調整市場（三次調整力①）`,
         `単価: ${unit_price}万円/kWh（中国製最安ライン。国産主要品は34万円/kWh）`,
       ],
@@ -3971,17 +3971,17 @@ function renderSimulator(site) {
         <div class="sim-input-row">
           <label>蓄電池容量 <span id="simCapLabel">${preset.cap_mwh} MWh</span></label>
           <input type="range" id="simCap"
-            min="${bessType==='low' ? 0.01 : 1}"
-            max="${bessType==='low' ? 0.2  : Math.max(preset.cap_mwh * 2, 20)}"
-            step="${bessType==='low' ? 0.01 : 1}"
+            min="${bessType==='low' ? 0.010 : 1}"
+            max="${bessType==='low' ? 0.050 : Math.max(preset.cap_mwh * 2, 20)}"
+            step="${bessType==='low' ? 0.001 : 1}"
             value="${preset.cap_mwh}"
             style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
         </div>
         <div class="sim-input-row">
           <label>出力 <span id="simPowerLabel">${bessType==='low' ? Math.round(preset.power_mw*1000)+'kW' : preset.power_mw+' MW'}</span></label>
           <input type="range" id="simPower"
-            min="${bessType==='low' ? 0.010 : 0.5}"
-            max="${bessType==='low' ? 0.0499: Math.max(preset.power_mw * 2, 10)}"
+            min="${bessType==='low' ? 0.005 : 0.5}"
+            max="${bessType==='low' ? 0.025 : Math.max(preset.power_mw * 2, 10)}"
             step="${bessType==='low' ? 0.001 : 0.5}"
             value="${preset.power_mw}"
             style="width:100%;accent-color:#38bdf8;cursor:pointer" oninput="calcSim(${site.id})">
