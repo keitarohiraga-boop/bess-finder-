@@ -3893,7 +3893,7 @@ function calcOptimalPreset(site) {
     const power_kw  = 49.9;
     const power_mw  = power_kw / 1000;          // 0.0499 MW
     const cap_mwh   = power_mw * 2;             // 2時間放電 = 0.1 MWh (≒99.8kWh)
-    const unit_price = 25;                       // 小規模・量産品 25万円/kWh
+    const unit_price = 28;                       // 中国製最安ライン 28万円/kWh（国産主要品34万円/kWh）
     return {
       cap_mwh:   Math.round(cap_mwh * 100) / 100,  // 0.1
       power_mw:  Math.round(power_mw * 1000) / 1000,
@@ -3902,7 +3902,7 @@ function calcOptimalPreset(site) {
         `出力: 49.9kW（低圧・配電線接続の上限）`,
         `容量: 49.9kW × 2h = 99.8kWh ≒ 0.1MWh`,
         `用途: ピークカット・需給調整市場（三次調整力①）`,
-        `単価: ${unit_price}万円/kWh（小規模・量産品）`,
+        `単価: ${unit_price}万円/kWh（中国製最安ライン。国産主要品は34万円/kWh）`,
       ],
     };
   }
