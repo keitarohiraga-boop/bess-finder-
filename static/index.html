@@ -2972,7 +2972,7 @@ const PREFECTURES = ["北海道","青森県","岩手県","宮城県","秋田県"
 function openScanPanel() {
   var old = document.getElementById("scanOverlay");
   if (old) old.remove();
-  var prefOpts = PREFECTURES.map(p => `<option value="${p}"${p==="熊本県"?" selected":""}>${p}</option>`).join("");
+  var prefOpts = PREFECTURES.map(p => `<option value="${p}"${p==="福島県"?" selected":""}>${p}</option>`).join("");
   var ov = document.createElement("div");
   ov.id = "scanOverlay";
   ov.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;";
@@ -3009,7 +3009,7 @@ function openScanPanel() {
         </div>
         <div>
           <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">最低スコア</label>
-          <input type="number" id="scanMinScore" value="50" min="0" max="100"
+          <input type="number" id="scanMinScore" value="40" min="0" max="100"
             style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px;border-radius:6px;font-size:12px;outline:none">
         </div>
         <div>
@@ -3017,8 +3017,19 @@ function openScanPanel() {
           <input type="number" id="scanMaxReg" value="100" min="10" max="500"
             style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px;border-radius:6px;font-size:12px;outline:none">
         </div>
-        <div style="display:flex;align-items:flex-end">
-          <div style="font-size:10px;color:#475569;line-height:1.6">OSM Overpassで候補地を検索（無料・リクエスト制限なし）。<br>実行時間：3〜10分程度</div>
+        <div>
+          <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">グリッド間隔 km <span style="color:#475569">（小さいほど密・時間増）</span></label>
+          <input type="number" id="scanGridKm" value="5" min="2" max="20" step="1"
+            style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px;border-radius:6px;font-size:12px;outline:none">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">検索半径 m</label>
+          <input type="number" id="scanRadiusM" value="800" min="200" max="2000" step="100"
+            style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px;border-radius:6px;font-size:12px;outline:none">
+        </div>
+        <div style="grid-column:span 2;font-size:10px;color:#475569;line-height:1.7">
+          グリッド5km×半径800mで福島県は約50点スキャン。実行時間：5〜15分程度。<br>
+          結果0件の場合はグリッドを3kmに下げるか最低スコアを下げてください。
         </div>
       </div>
       <button id="scanStartBtn" onclick="startScan()"
@@ -3055,6 +3066,8 @@ async function startScan() {
   const pref     = document.getElementById("scanPref").value;
   const minScore = parseInt(document.getElementById("scanMinScore").value) || 50;
   const maxReg   = parseInt(document.getElementById("scanMaxReg").value) || 100;
+  const gridKm   = parseFloat(document.getElementById("scanGridKm").value) || 5;
+  const radiusM  = parseInt(document.getElementById("scanRadiusM").value) || 800;
   const btn = document.getElementById("scanStartBtn");
   const log = document.getElementById("scanLog");
 
@@ -3070,7 +3083,7 @@ async function startScan() {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/scan/osm-prefecture?prefecture=${encodeURIComponent(pref)}&min_score=${minScore}&max_register=${maxReg}&bess_type=${_scanBessType}`, {
+    const res = await fetch(`${API_BASE}/scan/osm-prefecture?prefecture=${encodeURIComponent(pref)}&min_score=${minScore}&max_register=${maxReg}&bess_type=${_scanBessType}&grid_km=${gridKm}&radius_m=${radiusM}`, {
       method: "POST",
     });
     if (!res.ok) {
