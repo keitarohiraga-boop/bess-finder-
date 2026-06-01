@@ -355,17 +355,27 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 # 低圧BESS（49.9kW）候補として抽出するOSMタグ
 _OSM_TAGS = [
-    ("amenity", "parking"),
-    ("landuse",  "brownfield"),
-    ("landuse",  "vacant"),
-    ("landuse",  "industrial"),
+    ("amenity", "parking"),       # 大規模駐車場
+    ("landuse",  "brownfield"),   # 廃工場・遊休工業地
+    ("landuse",  "vacant"),       # 空き地
+    ("landuse",  "industrial"),   # 工業用地（現役・低利用）
+    ("landuse",  "meadow"),       # 草地・牧草地
+    ("landuse",  "landfill"),     # 廃棄物処分場跡地
+    ("natural",  "scrub"),        # 藪地・未整備地
+    ("landuse",  "farmland"),     # 農地（OSMベース・筆ポリゴン移行前の広域カバー）
+    ("landuse",  "grass"),        # 草地（大面積のもの）
 ]
 
 _OSM_LABEL = {
-    "parking":    "駐車場",
+    "parking":    "大規模駐車場",
     "brownfield": "遊休地（元工業）",
     "vacant":     "空き地",
     "industrial": "工業用地",
+    "meadow":     "草地・牧草地",
+    "landfill":   "処分場跡地",
+    "scrub":      "藪地・未整備地",
+    "farmland":   "農地（OSM）",
+    "grass":      "草地",
 }
 
 
@@ -410,8 +420,13 @@ def _score_low_voltage_candidate(lat: float, lng: float, area: float, land_type:
     zone_score = {
         "parking":    85,  # アスファルト済み・権利が明確
         "vacant":     78,  # 空き地・整地が必要な場合あり
-        "brownfield": 70,  # 元工業地・土壌汚染リスクあり
-        "industrial": 65,  # 現役工業地・交渉が必要
+        "meadow":     75,  # 草地・平坦で整地コスト低
+        "farmland":   73,  # 農地（OSM）・農地転用手続き要
+        "scrub":      70,  # 藪地・整地コストあり
+        "brownfield": 68,  # 元工業地・土壌汚染調査要
+        "grass":      65,  # 草地・維持管理用途の場合あり
+        "industrial": 63,  # 現役工業地・交渉が必要
+        "landfill":   55,  # 処分場跡地・土壌調査必須
     }.get(land_type, 60)
 
     # 洪水リスク（固定値70 → 将来的にハザードAPIと連携）
@@ -482,7 +497,7 @@ def _query_osm_candidates(lat: float, lng: float, radius_m: int = 500) -> list[d
         if key in seen:
             continue
         seen.add(key)
-        land_type = tags.get("amenity") or tags.get("landuse", "unknown")
+        land_type = tags.get("amenity") or tags.get("landuse") or tags.get("natural", "unknown")
         candidates.append({
             "lat": clat, "lng": clng,
             "area": round(area),
