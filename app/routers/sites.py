@@ -99,3 +99,29 @@ def get_site(site_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Site not found")
     maps = _build_lookup_maps(db)
     return _attach_extras(site, maps)
+
+
+@router.delete("/{site_id}", summary="候補地を1件削除")
+def delete_site(site_id: int, db: Session = Depends(get_db)):
+    site = db.get(models.Site, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+    db.delete(site)
+    db.commit()
+    return {"deleted": site_id}
+
+
+@router.delete("/admin/clear-samples", summary="サンプル・旧データを一括削除（OSMスキャン結果は残す）")
+def clear_sample_sites(db: Session = Depends(get_db)):
+    """
+    OSMスキャン以外で登録されたサンプル・手動データを削除する。
+    landuse='osm' でないサイトを全削除。本番OSMデータは保持される。
+    """
+    sample_sites = db.query(models.Site).filter(
+        models.Site.landuse != "osm"
+    ).all()
+    count = len(sample_sites)
+    for s in sample_sites:
+        db.delete(s)
+    db.commit()
+    return {"deleted_count": count, "message": f"{count}件のサンプルデータを削除しました"}
