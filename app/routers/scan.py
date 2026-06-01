@@ -272,12 +272,7 @@ async def _run_scan(
             yield _sse("progress", {"message": f"スキップ: {str(e)[:40]}"})
             continue
 
-        # 1点あたりのデータ過多チェック
-        if len(features) > max_features_per_point:
-            yield _sse("progress", {"message": f"データ過多（{len(features)}件）のためスキップ（上限{max_features_per_point}件）"})
-            continue
-
-        yield _sse("progress", {"message": f"  → {len(features)}件取得"})
+        yield _sse("progress", {"message": f"  → {len(features)}件取得（上限{max_features_per_point}件）"})
 
         # 第3種農地のみ抽出・重複除去
         for feat in features:

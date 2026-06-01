@@ -76,7 +76,6 @@ def _search_farmland(lat: float, lng: float, distance_m: int = 100, max_features
         "Latitude":  lat,
         "Longitude": lng,
         "Distance":  distance_m,
-        "$top":      max_features,
     })
     url = f"{SEARCH_URL}?{params}"
     req = urllib.request.Request(
@@ -96,10 +95,14 @@ def _search_farmland(lat: float, lng: float, distance_m: int = 100, max_features
 
     # レスポンスがリストまたは features キーを持つ GeoJSON
     if isinstance(data, list):
-        return data
-    if isinstance(data, dict):
-        return data.get("features", data.get("value", []))
-    return []
+        features = data
+    elif isinstance(data, dict):
+        features = data.get("features", data.get("value", []))
+    else:
+        features = []
+
+    # WAGRIは$topを無視するためPython側で切り詰め
+    return features[:max_features]
 
 
 def _determine_farm_class(features: list[dict]) -> Optional[str]:
