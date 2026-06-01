@@ -714,6 +714,7 @@
       <div class="filter-group">
         <div class="filter-label"><span class="icon">🏗️</span> 用途地域 <span class="tag">国土数値情報</span></div>
         <div class="toggle-group">
+          <button class="toggle-btn active" data-filter="landuse" data-val="osm">OSMスキャン結果</button>
           <button class="toggle-btn active" data-filter="landuse" data-val="industrial">工業・工業専用</button>
           <button class="toggle-btn active" data-filter="landuse" data-val="quasi-industrial">準工業</button>
           <button class="toggle-btn active" data-filter="landuse" data-val="unzoned">用途地域外</button>
@@ -1254,7 +1255,7 @@ const SITES = [];
 
 // ===== フィルター状態 =====
 let filters = {
-  landuse: new Set(["industrial", "quasi-industrial", "unzoned"]),  // 用途地域
+  landuse: new Set(["osm", "industrial", "quasi-industrial", "unzoned"]),  // 用途地域
   farm:    new Set(["non-farm", "class2-farm", "class3-farm"]),     // 農地法（独立フィルター）
   flood:   new Set(["none", "low"]),
   substationMax: 3000,
