@@ -3025,7 +3025,7 @@ function openBatchPanel() {
         style="width:100%;padding:12px;background:#0ea5e9;border:none;color:#fff;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;margin-bottom:12px">
         🚀 バッチスキャン開始
       </button>
-      <button onclick="checkBatchStatus()" id="batchCheckBtn"
+      <button onclick="checkBatchStatus(true)" id="batchCheckBtn"
         style="width:100%;padding:8px;background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:8px;cursor:pointer;font-size:12px;margin-bottom:12px">
         📊 進捗を確認
       </button>
@@ -3065,11 +3065,13 @@ async function startBatchScan() {
   }
 }
 
-async function checkBatchStatus() {
+async function checkBatchStatus(fromBtn) {
   const log = document.getElementById("batchLog");
   const indicator = document.getElementById("batchIndicator");
   const indText   = document.getElementById("batchIndicatorText");
-  if (log) { log.style.display = "block"; }
+  const checkBtn  = document.getElementById("batchCheckBtn");
+  if (log) { log.style.display = "block"; log.innerHTML = "⏳ 取得中..."; }
+  if (checkBtn && fromBtn) { checkBtn.disabled = true; checkBtn.textContent = "⏳ 取得中..."; }
   try {
     const res = await fetch(`${API_BASE}/scan/batch/status`);
     const s = await res.json();
@@ -3107,9 +3109,11 @@ async function checkBatchStatus() {
       ${s.error ? `<div style="color:#f87171">エラー: ${s.error}</div>` : ''}
       <div style="margin-top:8px;max-height:150px;overflow-y:auto">${doneList}</div>
     `;
-    if (s.running) setTimeout(checkBatchStatus, 10000); // 10秒ごとに自動更新
+    if (s.running) setTimeout(() => checkBatchStatus(false), 10000); // 10秒ごとに自動更新
   } catch(e) {
-    log.innerHTML = `❌ ステータス取得失敗: ${e.message}`;
+    if (log) log.innerHTML = `❌ ステータス取得失敗: ${e.message}`;
+  } finally {
+    if (checkBtn && fromBtn) { checkBtn.disabled = false; checkBtn.textContent = "📊 進捗を確認"; }
   }
 }
 
