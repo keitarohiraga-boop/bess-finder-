@@ -3031,10 +3031,10 @@ function openBatchPanel() {
       </button>
       <div id="batchLog" style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;font-size:11px;color:#64748b;display:none;line-height:1.8"></div>
     </div>`;
+  document.body.appendChild(ov);
   document.getElementById("batchPrefs").onchange = function() {
     document.getElementById("batchCustomPrefs").style.display = this.value === "custom" ? "" : "none";
   };
-  document.body.appendChild(ov);
   checkBatchStatus();
 }
 
