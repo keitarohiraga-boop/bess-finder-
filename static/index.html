@@ -665,7 +665,11 @@
         </button>
         <button onclick="closeInfoMenu();openScanPanel()"
           style="display:block;width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid #334155;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
-          🔍 全国候補地スキャン
+          🔍 全国候補地スキャン（手動）
+        </button>
+        <button onclick="closeInfoMenu();openBatchPanel()"
+          style="display:block;width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid #334155;color:#38bdf8;font-size:12px;cursor:pointer;text-align:left">
+          🤖 全都道府県 自動スキャン
         </button>
         <button onclick="closeInfoMenu();openChangelogModal()"
           style="display:block;width:100%;padding:10px 16px;background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;text-align:left">
@@ -2968,6 +2972,124 @@ function renderCalendarTab() {
 
 // ===== 全国スキャンパネル =====
 const PREFECTURES = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
+
+// ===== 全都道府県バッチスキャンパネル =====
+function openBatchPanel() {
+  var old = document.getElementById("batchOverlay");
+  if (old) old.remove();
+  var ov = document.createElement("div");
+  ov.id = "batchOverlay";
+  ov.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;";
+  ov.innerHTML = `
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:28px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <div style="font-size:18px;font-weight:700;color:#38bdf8">🤖 全都道府県 自動スキャン</div>
+          <div style="font-size:11px;color:#64748b;margin-top:3px">バックグラウンドで全国を順次スキャン。ブラウザを閉じても続行</div>
+        </div>
+        <button onclick="document.getElementById('batchOverlay').remove()" style="background:#334155;border:none;color:#94a3b8;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
+      </div>
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:12px;margin-bottom:14px;font-size:11px;color:#64748b;line-height:1.7">
+        ・スキャン済みの都道府県はスキップ（重複登録なし）<br>
+        ・1県あたり50件まで登録・グリッド10km・半径800m<br>
+        ・全47都道府県で数時間かかる場合あり
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div>
+          <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">BESSタイプ</label>
+          <select id="batchBessType" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px;border-radius:6px;font-size:12px">
+            <option value="low">低圧（49.9kW）</option>
+            <option value="high">高圧（500kW+）</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">対象</label>
+          <select id="batchPrefs" style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px;border-radius:6px;font-size:12px">
+            <option value="all">全47都道府県</option>
+            <option value="tohoku">東北6県のみ</option>
+            <option value="custom">カスタム指定</option>
+          </select>
+        </div>
+      </div>
+      <div id="batchCustomPrefs" style="display:none;margin-bottom:14px">
+        <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">都道府県をカンマ区切りで入力</label>
+        <input id="batchCustomInput" type="text" placeholder="例: 北海道,青森県,岩手県"
+          style="width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px;border-radius:6px;font-size:12px;outline:none">
+      </div>
+      <button id="batchStartBtn" onclick="startBatchScan()"
+        style="width:100%;padding:12px;background:#0ea5e9;border:none;color:#fff;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;margin-bottom:12px">
+        🚀 バッチスキャン開始
+      </button>
+      <button onclick="checkBatchStatus()" id="batchCheckBtn"
+        style="width:100%;padding:8px;background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:8px;cursor:pointer;font-size:12px;margin-bottom:12px">
+        📊 進捗を確認
+      </button>
+      <div id="batchLog" style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;font-size:11px;color:#64748b;display:none;line-height:1.8"></div>
+    </div>`;
+  document.getElementById("batchPrefs").onchange = function() {
+    document.getElementById("batchCustomPrefs").style.display = this.value === "custom" ? "" : "none";
+  };
+  document.body.appendChild(ov);
+  checkBatchStatus();
+}
+
+const TOHOKU_PREFS = "青森県,岩手県,宮城県,秋田県,山形県,福島県";
+
+async function startBatchScan() {
+  const bessType = document.getElementById("batchBessType").value;
+  const prefsMode = document.getElementById("batchPrefs").value;
+  let prefStr;
+  if (prefsMode === "all") prefStr = "all";
+  else if (prefsMode === "tohoku") prefStr = TOHOKU_PREFS;
+  else prefStr = document.getElementById("batchCustomInput").value.trim();
+
+  if (!prefStr) { alert("都道府県を入力してください"); return; }
+
+  const log = document.getElementById("batchLog");
+  log.style.display = "block";
+  log.innerHTML = "🚀 バッチスキャン開始中...";
+
+  try {
+    const res = await fetch(`${API_BASE}/scan/batch?prefectures=${encodeURIComponent(prefStr)}&bess_type=${bessType}`, { method: "POST" });
+    const data = await res.json();
+    log.innerHTML = `✅ ${data.message}<br><span style="color:#475569">進捗は「進捗を確認」ボタンで確認できます</span>`;
+    document.getElementById("batchStartBtn").textContent = "✅ 実行中";
+    document.getElementById("batchStartBtn").style.background = "#14532d";
+  } catch(e) {
+    log.innerHTML = `❌ エラー: ${e.message}`;
+  }
+}
+
+async function checkBatchStatus() {
+  const log = document.getElementById("batchLog");
+  if (!log) return;
+  log.style.display = "block";
+  try {
+    const res = await fetch(`${API_BASE}/scan/batch/status`);
+    const s = await res.json();
+    if (!s.running && !s.started_at) {
+      log.innerHTML = `<span style="color:#475569">まだバッチスキャンは実行されていません</span>`;
+      return;
+    }
+    const doneList = (s.done || []).map(d =>
+      d.skipped ? `<span style="color:#475569">${d.pref}: スキップ（スキャン済み）</span>` :
+      d.error    ? `<span style="color:#f87171">${d.pref}: エラー</span>` :
+                   `<span style="color:#4ade80">${d.pref}: ${d.registered}件登録</span>`
+    ).join("<br>");
+    log.innerHTML = `
+      <div style="color:${s.running ? '#38bdf8' : '#4ade80'};font-weight:600;margin-bottom:6px">
+        ${s.running ? `⏳ スキャン中: ${s.current_pref || '...'}` : '✅ 完了'}
+      </div>
+      <div>完了県: ${s.done?.length || 0} / 累計登録: ${s.total_registered}件</div>
+      ${s.finished_at ? `<div style="color:#64748b">終了: ${new Date(s.finished_at).toLocaleString('ja-JP')}</div>` : ''}
+      ${s.error ? `<div style="color:#f87171">エラー: ${s.error}</div>` : ''}
+      <div style="margin-top:8px;max-height:150px;overflow-y:auto">${doneList}</div>
+    `;
+    if (s.running) setTimeout(checkBatchStatus, 10000); // 10秒ごとに自動更新
+  } catch(e) {
+    log.innerHTML = `❌ ステータス取得失敗: ${e.message}`;
+  }
+}
 
 function openScanPanel() {
   var old = document.getElementById("scanOverlay");

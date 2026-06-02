@@ -155,7 +155,7 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 # 低圧BESS（49.9kW）候補として抽出するOSMタグ
 _OSM_TAGS = [
-    ("amenity", "parking"),       # 大規模駐車場
+    ("amenity",  "parking"),      # 大規模駐車場
     ("landuse",  "brownfield"),   # 廃工場・遊休工業地
     ("landuse",  "vacant"),       # 空き地
     ("landuse",  "industrial"),   # 工業用地（現役・低利用）
@@ -164,18 +164,28 @@ _OSM_TAGS = [
     ("natural",  "scrub"),        # 藪地・未整備地
     ("landuse",  "farmland"),     # 農地（OSMベース・筆ポリゴン移行前の広域カバー）
     ("landuse",  "grass"),        # 草地（大面積のもの）
+    ("leisure",  "golf_course"),  # ゴルフ場（廃業・休業含む）大面積・平坦・高圧BESS向け
+    ("landuse",  "quarry"),       # 採石場跡地（平坦化済み・大面積）
+    ("landuse",  "depot"),        # 車両基地・倉庫敷地（平坦・舗装済み）
+    ("landuse",  "railway"),      # 廃線跡地・鉄道用地
+    ("amenity",  "fuel"),         # 廃業ガソリンスタンド（都市部・小規模低圧向け）
 ]
 
 _OSM_LABEL = {
-    "parking":    "大規模駐車場",
-    "brownfield": "遊休地（元工業）",
-    "vacant":     "空き地",
-    "industrial": "工業用地",
-    "meadow":     "草地・牧草地",
-    "landfill":   "処分場跡地",
-    "scrub":      "藪地・未整備地",
-    "farmland":   "農地（OSM）",
-    "grass":      "草地",
+    "parking":     "大規模駐車場",
+    "brownfield":  "遊休地（元工業）",
+    "vacant":      "空き地",
+    "industrial":  "工業用地",
+    "meadow":      "草地・牧草地",
+    "landfill":    "処分場跡地",
+    "scrub":       "藪地・未整備地",
+    "farmland":    "農地（OSM）",
+    "grass":       "草地",
+    "golf_course": "ゴルフ場",
+    "quarry":      "採石場跡地",
+    "depot":       "車両基地・倉庫敷地",
+    "railway":     "廃線跡地",
+    "fuel":        "廃業ガソリンスタンド",
 }
 
 
@@ -225,8 +235,13 @@ def _score_low_voltage_candidate(lat: float, lng: float, area: float, land_type:
         "scrub":      70,  # 藪地・整地コストあり
         "brownfield": 68,  # 元工業地・土壌汚染調査要
         "grass":      65,  # 草地・維持管理用途の場合あり
-        "industrial": 63,  # 現役工業地・交渉が必要
-        "landfill":   55,  # 処分場跡地・土壌調査必須
+        "industrial":  63,  # 現役工業地・交渉が必要
+        "landfill":    55,  # 処分場跡地・土壌調査必須
+        "golf_course": 88,  # ゴルフ場・平坦・大面積・アクセス道路あり（高圧向け最高評価）
+        "quarry":      72,  # 採石場跡地・平坦化済みが多い
+        "depot":       80,  # 車両基地・舗装済み・電力引込あり
+        "railway":     65,  # 廃線跡・細長い場合あり
+        "fuel":        70,  # 廃業GSは都市部立地・小規模低圧向け
     }.get(land_type, 60)
 
     # 洪水リスク（固定値70 → 将来的にハザードAPIと連携）
@@ -587,3 +602,157 @@ def scan_osm_prefecture(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ===== バッチスキャン（全都道府県自動実行） =====
+
+import threading
+
+_batch_status: dict = {
+    "running": False,
+    "current_pref": None,
+    "done": [],
+    "total_registered": 0,
+    "started_at": None,
+    "finished_at": None,
+    "error": None,
+}
+
+
+@router.get("/batch/status", summary="バッチスキャンの進捗状況")
+def batch_status():
+    return _batch_status
+
+
+@router.post("/batch", summary="全都道府県（または指定リスト）を順次バックグラウンドスキャン")
+def start_batch_scan(
+    prefectures: str = "all",   # "all" または "福島県,宮城県,茨城県" のようにカンマ区切り
+    bess_type: str = "low",
+    min_score: int = 40,
+    max_register: int = 50,     # 1県あたりの最大登録件数（バッチは控えめに）
+    grid_km: float = 10.0,
+    radius_m: int = 800,
+    skip_existing: bool = True,  # 既にスキャン済みの県をスキップ
+):
+    """
+    全都道府県を順次スキャンしてDBに登録する。バックグラウンドで実行されるため即座に返す。
+    進捗は GET /scan/batch/status で確認。
+    Railway の Cron Job から定期実行させることで完全自動化できる。
+    """
+    global _batch_status
+    if _batch_status["running"]:
+        return {"message": "すでにバッチスキャンが実行中です", "status": _batch_status}
+
+    if prefectures == "all":
+        target_prefs = list(PREF_CODE_MAP.keys())
+    else:
+        target_prefs = [p.strip() for p in prefectures.split(",") if p.strip() in PREF_CODE_MAP]
+
+    if not target_prefs:
+        return {"message": "有効な都道府県が指定されていません"}
+
+    def run_batch():
+        global _batch_status
+        from datetime import datetime, timezone
+        _batch_status = {
+            "running": True,
+            "current_pref": None,
+            "done": [],
+            "total_registered": 0,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at": None,
+            "error": None,
+        }
+
+        db = SessionLocal()
+        try:
+            for pref in target_prefs:
+                _batch_status["current_pref"] = pref
+
+                if skip_existing:
+                    existing_count = db.query(models.Site).filter(
+                        models.Site.prefecture == pref,
+                        models.Site.landuse == "osm",
+                    ).count()
+                    if existing_count > 0:
+                        _batch_status["done"].append({"pref": pref, "registered": 0, "skipped": True})
+                        continue
+
+                if pref not in _PREF_BOUNDS:
+                    _batch_status["done"].append({"pref": pref, "registered": 0, "error": "bounds未定義"})
+                    continue
+
+                grid = _make_grid(pref, grid_km=grid_km)
+                seen_coords: set = set()
+                candidates = []
+
+                for lat, lng in grid:
+                    try:
+                        hits = _query_osm_candidates(lat, lng, int(radius_m))
+                    except Exception:
+                        time.sleep(2.0)
+                        continue
+                    for h in hits:
+                        if h["area"] < 20:
+                            continue
+                        key = (h["lat"], h["lng"])
+                        if key in seen_coords:
+                            continue
+                        seen_coords.add(key)
+                        if bess_type == "low":
+                            scores = _score_low_voltage_candidate(h["lat"], h["lng"], h["area"], h["land_type"], pref, db)
+                        else:
+                            scores = _score_candidate(h["lat"], h["lng"], h["area"], pref, db)
+                        candidates.append({**h, "prefecture": pref, "scores": scores})
+                    time.sleep(1.5)
+
+                candidates.sort(key=lambda c: c["scores"]["overall"], reverse=True)
+                registered = 0
+                type_label = "低圧49.9kW" if bess_type == "low" else "高圧500kW+"
+
+                for cand in candidates:
+                    if registered >= max_register:
+                        break
+                    s = cand["scores"]
+                    if s["overall"] < min_score:
+                        continue
+                    existing = db.query(models.Site).filter(
+                        models.Site.lat.between(cand["lat"] - 0.005, cand["lat"] + 0.005),
+                        models.Site.lng.between(cand["lng"] - 0.005, cand["lng"] + 0.005),
+                    ).all()
+                    if any(haversine(cand["lat"], cand["lng"], sx.lat, sx.lng) < 300 for sx in existing):
+                        continue
+                    label = cand["land_label"]
+                    name_hint = f"「{cand['name']}」" if cand["name"] else ""
+                    subst_dist = 0 if bess_type == "low" else s.get("subst_dist", 99999)
+                    db.add(models.Site(
+                        name=f"【OSM{type_label}】{label}{name_hint} {pref}",
+                        address=pref, prefecture=pref,
+                        area=cand["area"], landuse="osm", landuse_label=label,
+                        flood="none", flood_label="未確認", slope=2.0,
+                        substation_dist=subst_dist, land_price=None,
+                        farm_class=None, soil_risk="未確認", road_width=4.0,
+                        score=s["overall"], lat=cand["lat"], lng=cand["lng"],
+                    ))
+                    registered += 1
+
+                db.commit()
+                _batch_status["done"].append({"pref": pref, "registered": registered})
+                _batch_status["total_registered"] += registered
+
+        except Exception as e:
+            _batch_status["error"] = str(e)[:200]
+        finally:
+            db.close()
+            _batch_status["running"] = False
+            _batch_status["current_pref"] = None
+            _batch_status["finished_at"] = datetime.now(timezone.utc).isoformat()
+
+    thread = threading.Thread(target=run_batch, daemon=True)
+    thread.start()
+
+    return {
+        "message": f"{len(target_prefs)}都道府県のバッチスキャンを開始しました（バックグラウンド実行）",
+        "prefectures": target_prefs,
+        "status_url": "/api/v1/scan/batch/status",
+    }
